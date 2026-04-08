@@ -1,0 +1,8 @@
+:root {
+	--ott-content-max-width: 1200px;
+	--ott-content-padding-x: clamp(1rem, 1.8vw, 2rem);
+	--ott-section-padding-y: clamp(3rem, 6vw, 6rem);
+	--ott-radius-card: 1.2rem;
+	--ott-blur-soft: 28px;
+	--ott-blur-strong: 56px;
+}

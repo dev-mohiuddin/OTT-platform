@@ -1,0 +1,45 @@
+:root {
+        --ott-brand-crimson: oklch(0.65 0.19 24);
+        --ott-brand-violet: #7300ff;
+        --ott-brand-emerald: oklch(0.55 0.14 166);
+        --ott-brand-amber: oklch(0.68 0.15 78);
+
+        --ott-bg-canvas: oklch(0.98 0.006 286);
+        --ott-bg-elevated: oklch(0.96 0.009 287);
+        --ott-bg-soft: oklch(0.92 0.014 290);
+
+        --ott-text-primary: oklch(0.2 0.017 284);
+        --ott-text-secondary: oklch(0.37 0.014 284);
+        --ott-text-muted: oklch(0.53 0.012 286);
+
+        --ott-border-soft: oklch(0.8 0.02 292 / 72%);
+        --ott-border-strong: oklch(0.68 0.05 295 / 78%);
+        --ott-focus: oklch(0.56 0.25 301 / 82%);
+
+        --ott-state-success: oklch(0.54 0.14 166);
+        --ott-state-warning: oklch(0.74 0.14 82);
+        --ott-state-danger: oklch(0.58 0.19 24);
+}
+
+.dark {
+        --ott-brand-crimson: oklch(0.72 0.2 24);
+        --ott-brand-violet: #7300ff;
+        --ott-brand-emerald: oklch(0.8 0.15 166);
+        --ott-brand-amber: oklch(0.86 0.13 78);
+
+        --ott-bg-canvas: oklch(0.08 0.004 260);
+        --ott-bg-elevated: oklch(0.11 0.008 270);
+        --ott-bg-soft: oklch(0.15 0.012 285);
+
+        --ott-text-primary: oklch(0.97 0.012 286);
+        --ott-text-secondary: oklch(0.87 0.018 287);
+        --ott-text-muted: oklch(0.72 0.016 288);
+
+        --ott-border-soft: oklch(1 0 0 / 12%);
+        --ott-border-strong: oklch(1 0 0 / 24%);
+        --ott-focus: oklch(0.66 0.26 301 / 84%);
+
+        --ott-state-success: oklch(0.78 0.15 166);
+        --ott-state-warning: oklch(0.88 0.13 82);
+        --ott-state-danger: oklch(0.76 0.18 24);
+}

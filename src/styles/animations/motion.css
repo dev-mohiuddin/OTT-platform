@@ -1,0 +1,110 @@
+@keyframes ott-fade-up {
+	0% {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes ott-fade-in {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}
+
+@keyframes ott-scale-in {
+	0% {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes ott-glow-shift {
+	0% {
+		transform: translateX(-8%) translateY(0);
+		opacity: 0.5;
+	}
+
+	50% {
+		transform: translateX(0) translateY(-2%);
+		opacity: 0.8;
+	}
+
+	100% {
+		transform: translateX(8%) translateY(0);
+		opacity: 0.55;
+	}
+}
+
+@keyframes ott-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(-8px);
+	}
+}
+
+.animate-ott-fade-up {
+	animation: ott-fade-up var(--motion-duration-base) var(--motion-ease-emphasis)
+		both;
+}
+
+.animate-ott-fade-in {
+	animation: ott-fade-in var(--motion-duration-base) var(--motion-ease-standard)
+		both;
+}
+
+.animate-ott-scale-in {
+	animation: ott-scale-in var(--motion-duration-base) var(--motion-ease-emphasis)
+		both;
+}
+
+.animate-ott-glow-shift {
+	animation: ott-glow-shift 6s var(--motion-ease-standard) infinite;
+}
+
+.animate-ott-float {
+	animation: ott-float 5s var(--motion-ease-standard) infinite;
+}
+
+.stagger-1 {
+	animation-delay: 80ms;
+}
+
+.stagger-2 {
+	animation-delay: 140ms;
+}
+
+.stagger-3 {
+	animation-delay: 200ms;
+}
+
+.stagger-4 {
+	animation-delay: 260ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-ott-fade-up,
+	.animate-ott-fade-in,
+	.animate-ott-scale-in,
+	.animate-ott-glow-shift,
+	.animate-ott-float {
+		animation: none;
+	}
+}

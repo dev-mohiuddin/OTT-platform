@@ -1,0 +1,12 @@
+:root {
+	--motion-duration-ultra-fast: 120ms;
+	--motion-duration-fast: 180ms;
+	--motion-duration-base: 280ms;
+	--motion-duration-slow: 420ms;
+	--motion-duration-hero: 640ms;
+
+	--motion-ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+	--motion-ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
+	--motion-ease-exit: cubic-bezier(0.32, 0, 0.67, 0);
+	--motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}

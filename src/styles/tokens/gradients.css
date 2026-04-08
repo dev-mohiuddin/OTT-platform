@@ -1,0 +1,43 @@
+:root {
+        --ott-gradient-page:
+                radial-gradient(circle at 88% -8%, oklch(0.63 0.2 300 / 8%), transparent 30%),
+                radial-gradient(circle at 12% 10%, oklch(0.59 0.18 275 / 10%), transparent 36%),
+                linear-gradient(180deg, oklch(0.99 0.004 286), oklch(0.95 0.007 286));
+
+        --ott-gradient-hero:
+                linear-gradient(92deg, oklch(0.99 0.003 286 / 94%) 14%, oklch(0.98 0.003 286 / 62%) 48%, oklch(0.98 0.003 286 / 24%) 100%),
+                linear-gradient(0deg, oklch(0.97 0.003 286 / 90%), oklch(0.97 0.003 286 / 8%));
+
+        --ott-gradient-card-base: linear-gradient(162deg, oklch(0.985 0.005 286 / 92%), oklch(0.965 0.01 288 / 88%));
+
+        --ott-gradient-card-hover:
+                linear-gradient(125deg, oklch(0.59 0.24 301 / 10%), oklch(0.55 0.17 286 / 6%) 55%, oklch(0.78 0.11 76 / 3%));
+
+        --ott-gradient-auth-panel:
+                linear-gradient(155deg, oklch(0.96 0.007 286) 0%, oklch(0.91 0.01 282) 100%);
+
+        --ott-gradient-cta:
+                linear-gradient(122deg, oklch(0.58 0.24 301) 0%, oklch(0.53 0.24 299) 48%, oklch(0.47 0.2 292) 100%);
+}
+
+.dark {
+        --ott-gradient-page:
+                radial-gradient(circle at 88% -12%, oklch(0.61 0.23 302 / 19%), transparent 30%),
+                radial-gradient(circle at 15% 14%, oklch(0.57 0.18 276 / 20%), transparent 35%),
+                linear-gradient(180deg, oklch(0.08 0.004 260), oklch(0.08 0.004 260));
+
+        --ott-gradient-hero:
+                linear-gradient(92deg, oklch(0.02 0.002 260 / 98%) 14%, oklch(0.02 0.002 260 / 60%) 48%, oklch(0.02 0.002 260 / 20%) 100%),
+                linear-gradient(0deg, oklch(0.03 0.002 260 / 95%), oklch(0.03 0.002 260 / 8%));
+
+        --ott-gradient-card-base: linear-gradient(162deg, oklch(0.125 0.008 280 / 95%), oklch(0.102 0.007 266 / 94%));
+
+        --ott-gradient-card-hover:
+                linear-gradient(125deg, oklch(0.56 0.25 301 / 17%), oklch(0.48 0.17 285 / 11%) 55%, oklch(0.68 0.11 78 / 7%));
+
+        --ott-gradient-auth-panel:
+                linear-gradient(155deg, oklch(0.12 0.008 280) 0%, oklch(0.08 0.004 260) 100%);
+
+        --ott-gradient-cta:
+                linear-gradient(122deg, oklch(0.42 0.22 294) 0%, oklch(0.37 0.2 291) 52%, oklch(0.32 0.16 286) 100%);
+}
