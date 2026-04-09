@@ -72,12 +72,14 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     Google({
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: env.GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING ?? false,
     }),
   );
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: env.NEXTAUTH_SECRET,
+  trustHost: env.AUTH_TRUST_HOST ?? (env.NODE_ENV === "development"),
   adapter: PrismaAdapter(db),
   session: {
     strategy: "jwt",
@@ -169,7 +171,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (!session.user) {
-        return session;
+        session.user = {
+          name: typeof token.name === "string" ? token.name : null,
+          email: typeof token.email === "string" ? token.email : null,
+          image: typeof token.picture === "string" ? token.picture : null,
+        };
       }
 
       session.user.id = token.sub ?? "";

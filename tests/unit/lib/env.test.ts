@@ -31,15 +31,47 @@ describe("config/env", () => {
     expect(envFalse.SMTP_SECURE).toBe(false);
   });
 
+  it("parses AUTH_TRUST_HOST as optional boolean", () => {
+    const envTrue = getServerEnv({ AUTH_TRUST_HOST: "true" });
+    const envFalse = getServerEnv({ AUTH_TRUST_HOST: "false" });
+    const envUnset = getServerEnv({});
+
+    expect(envTrue.AUTH_TRUST_HOST).toBe(true);
+    expect(envFalse.AUTH_TRUST_HOST).toBe(false);
+    expect(envUnset.AUTH_TRUST_HOST).toBeUndefined();
+  });
+
+  it("parses GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING as optional boolean", () => {
+    const envTrue = getServerEnv({ GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING: "true" });
+    const envFalse = getServerEnv({ GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING: "false" });
+    const envUnset = getServerEnv({});
+
+    expect(envTrue.GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING).toBe(true);
+    expect(envFalse.GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING).toBe(false);
+    expect(envUnset.GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING).toBeUndefined();
+  });
+
   it("requires auth env in auth runtime helper", () => {
     const env = getAuthEnvRequired({
       DATABASE_URL: "postgresql://localhost:5432/ott_platform",
+      NEXTAUTH_URL: "http://localhost:3000",
       NEXTAUTH_SECRET: "super-secret",
       GOOGLE_CLIENT_ID: "id-123",
       GOOGLE_CLIENT_SECRET: "secret-123",
     });
 
     expect(env.NEXTAUTH_SECRET).toBe("super-secret");
+  });
+
+  it("throws when NEXTAUTH_URL is missing in auth runtime helper", () => {
+    expect(() => {
+      getAuthEnvRequired({
+        DATABASE_URL: "postgresql://localhost:5432/ott_platform",
+        NEXTAUTH_SECRET: "super-secret",
+        GOOGLE_CLIENT_ID: "id-123",
+        GOOGLE_CLIENT_SECRET: "secret-123",
+      });
+    }).toThrow("Missing NEXTAUTH_URL in server environment.");
   });
 
   it("requires smtp env in smtp runtime helper", () => {

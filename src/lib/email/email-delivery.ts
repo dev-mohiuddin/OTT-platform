@@ -30,11 +30,17 @@ export function isEmailTransportError(error: unknown): boolean {
   return (
     code === "EAUTH"
     || code === "ECONNECTION"
+    || code === "ECONNREFUSED"
     || code === "ETIMEDOUT"
     || code === "ENOTFOUND"
+    || code === "EAI_AGAIN"
     || code === "ESOCKET"
     || message.includes("invalid login")
     || message.includes("badcredentials")
+    || message.includes("enotfound")
+    || message.includes("eai_again")
+    || message.includes("getaddrinfo")
+    || message.includes("econnrefused")
     || message.includes("535")
   );
 }

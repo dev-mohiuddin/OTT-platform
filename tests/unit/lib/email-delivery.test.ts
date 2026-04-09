@@ -23,6 +23,12 @@ describe("lib/email/email-delivery", () => {
     expect(isEmailTransportError(error)).toBe(true);
   });
 
+  it("detects DNS lookup failures", () => {
+    const error = new Error("getaddrinfo ENOTFOUND smtp.invalid-host.test");
+
+    expect(isEmailTransportError(error)).toBe(true);
+  });
+
   it("returns false for unknown non-email errors", () => {
     const error = new Error("Unexpected parsing issue");
 

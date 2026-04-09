@@ -5,8 +5,28 @@ const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   NEXTAUTH_URL: z.string().url().optional(),
   NEXTAUTH_SECRET: z.string().min(1).optional(),
+  AUTH_TRUST_HOST: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => {
+      if (value === undefined) {
+        return undefined;
+      }
+
+      return value === "true";
+    }),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => {
+      if (value === undefined) {
+        return undefined;
+      }
+
+      return value === "true";
+    }),
   SMTP_HOST: z.string().min(1).default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().int().positive().default(465),
   SMTP_SECURE: z
@@ -61,11 +81,15 @@ export function getServerEnvRequired(
 
 export function getAuthEnvRequired(
   env: Record<string, string | undefined> = process.env,
-): Required<Pick<ServerEnv, "DATABASE_URL" | "NEXTAUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> & ServerEnv {
+): Required<Pick<ServerEnv, "DATABASE_URL" | "NEXTAUTH_URL" | "NEXTAUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> & ServerEnv {
   const parsed = getServerEnv(env);
 
   if (!parsed.DATABASE_URL) {
     throw new Error("Missing DATABASE_URL in server environment.");
+  }
+
+  if (!parsed.NEXTAUTH_URL) {
+    throw new Error("Missing NEXTAUTH_URL in server environment.");
   }
 
   if (!parsed.NEXTAUTH_SECRET) {
@@ -76,7 +100,7 @@ export function getAuthEnvRequired(
     throw new Error("Missing Google OAuth credentials in server environment.");
   }
 
-  return parsed as Required<Pick<ServerEnv, "DATABASE_URL" | "NEXTAUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> & ServerEnv;
+  return parsed as Required<Pick<ServerEnv, "DATABASE_URL" | "NEXTAUTH_URL" | "NEXTAUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> & ServerEnv;
 }
 
 export function getSmtpEnvRequired(
