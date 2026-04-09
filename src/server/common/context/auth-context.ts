@@ -1,4 +1,4 @@
-export type UserRole = "user" | "admin" | "moderator" | "support";
+export type UserRole = string;
 export type SubscriptionTier = "free" | "basic" | "standard" | "premium";
 
 export interface AuthContext {

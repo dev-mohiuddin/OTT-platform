@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { MoonStarIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -10,10 +11,18 @@ interface ThemeToggleProps {
   className?: string;
 }
 
+function subscribe(): () => void {
+  return () => {
+    // no-op: used only to split server/client snapshots
+  };
+}
+
 export function ThemeToggle({ className }: ThemeToggleProps) {
+  const isClient = useSyncExternalStore(subscribe, () => true, () => false);
   const { theme, resolvedTheme, setTheme } = useTheme();
+
   const activeTheme = theme === "system" ? resolvedTheme : theme;
-  const isDark = activeTheme === "dark";
+  const isDark = isClient && activeTheme === "dark";
 
   return (
     <Button

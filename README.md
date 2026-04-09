@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dristy OTT Platform
 
-## Getting Started
+Modern OTT platform built with Next.js 16, NextAuth, Prisma 7, PostgreSQL, and a custom RBAC-based admin panel.
 
-First, run the development server:
+## Prerequisites
+
+- Node.js 20+
+- npm 10+
+- PostgreSQL running locally
+
+## Local Setup
+
+1. Install dependencies.
+
+```bash
+npm install
+```
+
+2. Create local environment file.
+
+```bash
+copy .env.example .env.local
+```
+
+3. Fill required values in `.env.local`.
+
+- `DATABASE_URL`
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (must be a plain email string)
+
+For Gmail SMTP, `SMTP_PASS` must be an App Password.
+
+4. Ensure the database in `DATABASE_URL` exists.
+
+- If you use `psql`, run `createdb -U postgres ott_platform`.
+- If you use pgAdmin or another GUI client, create database `ott_platform` manually.
+
+5. Generate Prisma client, run migration, then seed baseline auth data.
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate -- --name init
+npm run prisma:seed
+```
+
+6. Start the app.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Common Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+npm run test
+```
 
-## Learn More
+## Auth and OAuth Troubleshooting
 
-To learn more about Next.js, take a look at the following resources:
+### `/api/auth/error?error=Configuration`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Check all of these:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `NEXTAUTH_SECRET` is present and non-empty in `.env.local`
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are valid
+- PostgreSQL server is running
+- Prisma migration has been applied (`npm run prisma:migrate -- --name init`)
 
-## Deploy on Vercel
+### Prisma AdapterError about missing database or tables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This means local DB bootstrap is incomplete.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run:
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate -- --name init
+npm run prisma:seed
+```
+
+### `SMTP_FROM` zod validation error
+
+Use plain email format, for example:
+
+```env
+SMTP_FROM="no-reply@example.com"
+```
+
+Do not use display-name format unless the env schema is updated to allow it.
+
+### Signup succeeds but verification mail is delayed
+
+Email sign-up now remains successful when SMTP has temporary transport issues.
+
+- User is created in verification-pending state.
+- Verification code can be resent from `/verify-email`.
+- Check server logs for SMTP transport errors and fix credentials.
+
+## Auth Docs
+
+- `docs/auth/setup.md`
+- `docs/auth/troubleshooting.md`
+
+## Notes
+
+- Prisma 7 in this repository is configured through `prisma.config.ts`.
+- Seed command is configured in `prisma.config.ts` under `migrations.seed`.

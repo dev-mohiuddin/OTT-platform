@@ -1,12 +1,100 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { signIn } from "next-auth/react";
 
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+
+type SignUpMethod = "email" | "phone";
 
 export default function SignUpPage() {
+  const router = useRouter();
+
+  const [method, setMethod] = useState<SignUpMethod>("email");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+
+    if (!acceptedTerms) {
+      setErrorMessage("You must accept the terms to create an account.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const response = await fetch("/api/v1/auth/sign-up", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        method,
+        fullName,
+        email: method === "email" ? email : undefined,
+        phone: method === "phone" ? phone : undefined,
+        password,
+      }),
+    });
+
+    const payload = await response.json();
+    setIsSubmitting(false);
+
+    if (!response.ok || !payload.success) {
+      setErrorMessage(payload?.error?.message ?? "Failed to create account.");
+      return;
+    }
+
+    if (method === "email") {
+      const emailSent = payload?.data?.emailSent !== false;
+      const deliveryQuery = emailSent ? "" : "&delivery=failed";
+      router.push(`/verify-email?email=${encodeURIComponent(email)}${deliveryQuery}`);
+      return;
+    }
+
+    const loginResult = await signIn("credentials", {
+      identifier: phone,
+      password,
+      redirect: false,
+      callbackUrl: "/home",
+    });
+
+    if (!loginResult || loginResult.error) {
+      router.push("/sign-in");
+      return;
+    }
+
+    router.push(loginResult.url ?? "/home");
+    router.refresh();
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    await signIn("google", {
+      callbackUrl: "/home",
+    });
+  };
+
   return (
     <AuthShell
       title="Create your Dristy account"
@@ -14,20 +102,84 @@ export default function SignUpPage() {
       panelTitle="Your next obsession is one click away."
       panelText="Build profiles for family members, set language preferences, and get recommendations instantly."
     >
-      <form className="space-y-4" noValidate>
+      <div className="mb-4 grid grid-cols-2 gap-2 rounded-full border border-ott-border-soft p-1">
+        <button
+          type="button"
+          className={`h-8 rounded-full text-sm font-medium transition-colors ${
+            method === "email"
+              ? "bg-[#7300ff] text-white"
+              : "text-ott-text-secondary hover:bg-black/6 dark:hover:bg-white/10"
+          }`}
+          onClick={() => setMethod("email")}
+        >
+          Email Sign Up
+        </button>
+        <button
+          type="button"
+          className={`h-8 rounded-full text-sm font-medium transition-colors ${
+            method === "phone"
+              ? "bg-[#7300ff] text-white"
+              : "text-ott-text-secondary hover:bg-black/6 dark:hover:bg-white/10"
+          }`}
+          onClick={() => setMethod("phone")}
+        >
+          Phone Sign Up
+        </button>
+      </div>
+
+      <form className="space-y-4" noValidate onSubmit={handleSignUp}>
         <div className="space-y-2">
           <Label htmlFor="full-name">Full name</Label>
-          <Input id="full-name" type="text" placeholder="Your full name" className="h-10 bg-background/70" />
+          <Input
+            id="full-name"
+            type="text"
+            placeholder="Your full name"
+            className="h-10 bg-background/70"
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+            required
+          />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="you@example.com" className="h-10 bg-background/70" />
-        </div>
+        {method === "email" ? (
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              className="h-10 bg-background/70"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="phone">Mobile Number</Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="+8801XXXXXXXXX"
+              className="h-10 bg-background/70"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              required
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input id="password" type="password" placeholder="Create a strong password" className="h-10 bg-background/70" />
+          <Input
+            id="password"
+            type="password"
+            placeholder="Create a strong password"
+            className="h-10 bg-background/70"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
         </div>
 
         <div className="space-y-2">
@@ -37,18 +189,48 @@ export default function SignUpPage() {
             type="password"
             placeholder="Retype your password"
             className="h-10 bg-background/70"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            required
           />
         </div>
 
         <Label htmlFor="terms" className="items-start text-sm leading-relaxed text-ott-text-secondary">
-          <Checkbox id="terms" className="mt-1" />
+          <Checkbox
+            id="terms"
+            className="mt-1"
+            checked={acceptedTerms}
+            onCheckedChange={(value) => setAcceptedTerms(Boolean(value))}
+          />
           I agree to the Terms of Service and Privacy Policy, and I consent to receive account and billing updates.
         </Label>
 
-        <Button type="submit" size="lg" className="ott-gradient-cta w-full h-10 rounded-full text-white">
-          Create Account
+        {errorMessage ? <p className="text-sm text-red-500">{errorMessage}</p> : null}
+
+        <Button
+          type="submit"
+          size="lg"
+          className="ott-gradient-cta w-full h-10 rounded-full text-white"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Creating account..." : "Create Account"}
         </Button>
       </form>
+
+      <div className="my-5 flex items-center gap-3">
+        <Separator className="bg-ott-border-soft" />
+        <span className="text-xs uppercase tracking-[0.14em] text-ott-text-muted">Or</span>
+        <Separator className="bg-ott-border-soft" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 w-full border-ott-border-soft bg-background/70"
+        onClick={handleGoogleSignIn}
+      >
+        Continue with Google
+      </Button>
 
       <p className="mt-6 text-sm text-ott-text-secondary">
         Already have an account?{" "}
