@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/auth/access";
 import { ADMIN_PERMISSION } from "@/lib/auth/constants";
+import { createRequestContext } from "@/server/common/context/request-context";
+import { AppError } from "@/server/common/errors/app-error";
+import { API_ERROR_CODES } from "@/server/common/errors/error-codes";
+import { createErrorJsonResponse } from "@/server/common/http/json-response";
 
 const authPages = new Set([
   "/sign-in",
@@ -13,8 +17,12 @@ const authPages = new Set([
 ]);
 
 const protectedUserPrefixes = [
+  "/dashboard",
   "/account",
   "/settings",
+  "/billing",
+  "/shows",
+  "/movies",
   "/watchlist",
   "/my-list",
   "/browse",
@@ -28,6 +36,7 @@ const protectedAdminPrefixes = ["/admin", "/api/v1/admin"];
 export default auth((request) => {
   const { pathname } = request.nextUrl;
   const isLoggedIn = Boolean(request.auth?.user?.id);
+  const requestContext = createRequestContext(request);
 
   const isAuthPage = authPages.has(pathname);
   const isUserProtected = protectedUserPrefixes.some((prefix) =>
@@ -38,21 +47,17 @@ export default auth((request) => {
   );
 
   if (isAuthPage && isLoggedIn) {
-    return NextResponse.redirect(new URL("/home", request.url));
+    return NextResponse.redirect(new URL("/browse", request.url));
   }
 
   if (!isLoggedIn && (isUserProtected || isAdminProtected)) {
     if (pathname.startsWith("/api/")) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: "UNAUTHORIZED",
-            message: "Authentication is required.",
-            status: 401,
-          },
-        },
-        { status: 401 },
+      return createErrorJsonResponse(
+        new AppError("Authentication is required.", {
+          code: API_ERROR_CODES.UNAUTHORIZED,
+          expose: true,
+        }),
+        requestContext,
       );
     }
 
@@ -67,20 +72,16 @@ export default auth((request) => {
 
     if (!hasPermission(access, ADMIN_PERMISSION.PANEL_ACCESS)) {
       if (pathname.startsWith("/api/")) {
-        return Response.json(
-          {
-            success: false,
-            error: {
-              code: "FORBIDDEN",
-              message: "Admin access required.",
-              status: 403,
-            },
-          },
-          { status: 403 },
+        return createErrorJsonResponse(
+          new AppError("Admin access required.", {
+            code: API_ERROR_CODES.FORBIDDEN,
+            expose: true,
+          }),
+          requestContext,
         );
       }
 
-      return NextResponse.redirect(new URL("/home", request.url));
+      return NextResponse.redirect(new URL("/browse", request.url));
     }
   }
 
@@ -89,10 +90,14 @@ export default auth((request) => {
 
 export const config = {
   matcher: [
+    "/dashboard/:path*",
     "/admin/:path*",
     "/api/v1/admin/:path*",
     "/account/:path*",
     "/settings/:path*",
+    "/billing/:path*",
+    "/shows/:path*",
+    "/movies/:path*",
     "/watchlist/:path*",
     "/my-list/:path*",
     "/browse/:path*",

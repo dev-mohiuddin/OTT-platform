@@ -6,6 +6,8 @@ export interface ApiMeta {
 	traceId?: string;
 	timestamp: string;
 	version: string;
+	method?: string;
+	path?: string;
 	locale?: string;
 	country?: string;
 	currency?: string;
@@ -17,6 +19,8 @@ export interface ApiMetaInput {
 	traceId?: string;
 	timestamp?: string;
 	version?: string;
+	method?: string;
+	path?: string;
 	locale?: string;
 	country?: string;
 	currency?: string;
@@ -29,6 +33,8 @@ export function createApiMeta(input: ApiMetaInput): ApiMeta {
 		traceId: input.traceId,
 		timestamp: input.timestamp ?? new Date().toISOString(),
 		version: input.version ?? API_VERSION,
+		method: input.method,
+		path: input.path,
 		locale: input.locale,
 		country: input.country,
 		currency: input.currency,

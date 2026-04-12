@@ -227,15 +227,15 @@
   }
 
   .ott-gradient-cta {
-    background: #7300ff;
-    border: 1px solid oklch(0.47 0.21 295 / 60%);
-    box-shadow: 0 12px 26px -18px oklch(0.43 0.25 301 / 56%);
+    background: var(--ott-gradient-cta);
+    border: 1px solid var(--ott-cta-border);
+    box-shadow: var(--ott-cta-shadow);
     color: oklch(0.99 0 0);
   }
 
   .ott-gradient-cta:hover {
-    background: oklch(0.5 0.25 299);
-    box-shadow: 0 14px 28px -18px oklch(0.43 0.25 301 / 62%);
+    background: var(--ott-gradient-cta-hover);
+    box-shadow: var(--ott-cta-shadow-hover);
   }
 
   .ott-gradient-cta:focus-visible {
@@ -243,7 +243,7 @@
   }
 
   .dark .ott-gradient-cta {
-    border-color: oklch(0.69 0.16 300 / 44%);
-    box-shadow: 0 12px 28px -18px oklch(0.56 0.25 301 / 62%);
+    border-color: var(--ott-cta-border);
+    box-shadow: var(--ott-cta-shadow);
   }
 }

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ClapperboardIcon, Search } from "lucide-react";
+import { auth } from "@/auth";
 
 import { ThemeToggle } from "@/components/ott/layout/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PublicHeaderAuthButtons } from "@/components/ott/navigation/public-header-auth-buttons";
 
 const navItems = [
   {
@@ -32,12 +34,24 @@ const navItems = [
   },
 ];
 
-export function PublicHeader() {
+export async function PublicHeader() {
+  const session = await auth();
+  const isLoggedIn = Boolean(session?.user?.id);
+
+  const userName = session?.user?.name || "User";
+  const userEmail = session?.user?.email || "";
+  const userInitials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-ott-border-soft/70 bg-white/85 backdrop-blur-xl dark:bg-black/55">
       <div className="ott-shell flex h-16 items-center justify-between gap-3">
         <Link
-          href="/#top"
+          href={isLoggedIn ? "/browse" : "/#top"}
           className="inline-flex items-center gap-2 rounded-md px-1.5 py-1 text-sm font-heading font-semibold text-ott-text-primary"
         >
           <span className="inline-flex size-7 items-center justify-center rounded-md ott-gradient-cta shadow-(--ott-shadow-glow-violet)">
@@ -47,18 +61,41 @@ export function PublicHeader() {
         </Link>
 
         <nav className="hidden items-center gap-0.5 lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "h-8 rounded-full px-3 text-xs font-medium uppercase tracking-[0.12em] text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/browse"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "h-8 rounded-full px-3 text-xs font-medium uppercase tracking-[0.12em] text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
+                )}
+              >
+                Home
+              </Link>
+              <Link
+                href="/my-list"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "h-8 rounded-full px-3 text-xs font-medium uppercase tracking-[0.12em] text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
+                )}
+              >
+                My List
+              </Link>
+            </>
+          ) : (
+            navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "h-8 rounded-full px-3 text-xs font-medium uppercase tracking-[0.12em] text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))
+          )}
         </nav>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -72,26 +109,39 @@ export function PublicHeader() {
             <Search className="size-4" />
           </Button>
           <ThemeToggle className="hidden sm:inline-flex rounded-full border-black/10 bg-white/85 text-ott-text-secondary hover:bg-white hover:text-ott-text-primary dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:hover:text-white" />
-          <Link
-            href="/sign-in"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "h-8 rounded-full px-3 text-xs text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
-            )}
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/sign-up"
-            className={cn(
-              buttonVariants({ size: "sm" }),
-              "ott-gradient-cta h-8 rounded-full px-4 text-xs font-semibold uppercase tracking-[0.12em]",
-            )}
-          >
-            Join Now
-          </Link>
+
+          {isLoggedIn ? (
+            <PublicHeaderAuthButtons 
+              userName={userName}
+              userEmail={userEmail}
+              userInitials={userInitials}
+              userImage={session?.user?.image || ""}
+            />
+          ) : (
+            <>
+              <Link
+                href="/sign-in"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "h-8 rounded-full px-3 text-xs text-ott-text-secondary hover:bg-black/6 hover:text-ott-text-primary dark:hover:bg-white/10 dark:hover:text-white",
+                )}
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/sign-up"
+                className={cn(
+                  buttonVariants({ size: "sm" }),
+                  "ott-gradient-cta h-8 rounded-full px-4 text-xs font-semibold uppercase tracking-[0.12em]",
+                )}
+              >
+                Join Now
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
   );
 }
+

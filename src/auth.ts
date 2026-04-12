@@ -2,21 +2,28 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 
 import { getAuthEnvRequired } from "@/config/env/server-env";
-import { getUserAccessSnapshot } from "@/lib/auth/access";
+import { createMongoAuthAdapter } from "@/lib/auth/mongo-adapter";
+import { getUserAccessSnapshot, type AccessSnapshot } from "@/lib/auth/access";
 import { verifyPassword } from "@/lib/auth/password";
-import { db } from "@/lib/db/client";
 import { SYSTEM_ROLE } from "@/lib/auth/constants";
 import { normalizeIdentifier } from "@/lib/auth/code";
 import {
   assignRoleToUserBySlug,
+  findUserByEmail,
+  findUserById,
   findUserByIdentifier,
+  markUserEmailVerified,
 } from "@/server/modules/users/repositories/user-auth.repository";
 import { credentialsSignInSchema } from "@/server/modules/users/validators/auth.schemas";
+import { serverLogger } from "@/server/common/logging/server-logger";
 
 const env = getAuthEnvRequired(process.env);
+const emptyAccessSnapshot: AccessSnapshot = {
+  roles: [],
+  permissions: [],
+};
 
 const providers: Provider[] = [
   Credentials({
@@ -75,12 +82,16 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
       allowDangerousEmailAccountLinking: env.GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING ?? false,
     }),
   );
+
+  serverLogger.debug("Google OAuth provider is enabled.");
+} else {
+  serverLogger.warn("Google OAuth provider is disabled because credentials are not configured.");
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: env.NEXTAUTH_SECRET,
   trustHost: env.AUTH_TRUST_HOST ?? (env.NODE_ENV === "development"),
-  adapter: PrismaAdapter(db),
+  adapter: createMongoAuthAdapter(),
   session: {
     strategy: "jwt",
   },
@@ -91,33 +102,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   callbacks: {
     async signIn({ user, account }) {
-      const resolvedUserId = user.id
-        ?? (
-          user.email
-            ? (
-              await db.user.findUnique({
-                where: { email: user.email },
-                select: { id: true },
-              })
-            )?.id
-            : undefined
-        );
+      const normalizedEmail = user.email ? normalizeIdentifier(user.email) : undefined;
 
-      if (!resolvedUserId) {
+      if (account?.provider === "google" && !normalizedEmail) {
+        serverLogger.warn("Google sign-in rejected because provider did not return an email.", {
+          provider: account.provider,
+        });
         return false;
       }
 
-      const dbUser = await db.user.findUnique({
-        where: {
-          id: resolvedUserId,
-        },
-        select: {
-          id: true,
-          isActive: true,
-          email: true,
-          emailVerified: true,
-        },
-      });
+      const dbUser = user.id
+        ? await findUserById(user.id)
+        : (normalizedEmail ? await findUserByEmail(normalizedEmail) : null);
 
       if (!dbUser) {
         return account?.provider === "google";
@@ -134,10 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // OAuth providers (Google) are trusted by provider verification.
         if (account?.provider) {
-          await db.user.update({
-            where: { id: dbUser.id },
-            data: { emailVerified: new Date() },
-          });
+          await markUserEmailVerified(dbUser.id);
         } else {
           return false;
         }
@@ -151,21 +144,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token;
       }
 
-      const [access, user] = await Promise.all([
-        getUserAccessSnapshot(token.sub),
-        db.user.findUnique({
-          where: {
-            id: token.sub,
-          },
-          select: {
-            mustChangePassword: true,
-          },
-        }),
-      ]);
+      const user = await findUserById(token.sub);
+
+      if (!user || !user.isActive) {
+        return {
+          ...token,
+          sub: undefined,
+          roles: [],
+          permissions: [],
+          mustChangePassword: false,
+        };
+      }
+
+      let access = emptyAccessSnapshot;
+
+      try {
+        access = await getUserAccessSnapshot(user.id);
+      } catch (error) {
+        serverLogger.error("Unable to resolve access snapshot for jwt callback.", {
+          userId: user.id,
+          error,
+        });
+      }
 
       token.roles = access.roles;
       token.permissions = access.permissions;
-      token.mustChangePassword = user?.mustChangePassword ?? false;
+      token.mustChangePassword = user.mustChangePassword;
 
       return token;
     },
@@ -184,6 +188,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.mustChangePassword = Boolean(token.mustChangePassword);
 
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        if (url === "/" || url === "/home") return `${baseUrl}/browse`;
+        return `${baseUrl}${url}`;
+      }
+
+      try {
+        const parsedUrl = new URL(url);
+        return parsedUrl.origin === baseUrl ? url : `${baseUrl}/browse`;
+      } catch {
+        return `${baseUrl}/browse`;
+      }
     },
   },
 });

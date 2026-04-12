@@ -1,6 +1,12 @@
-import type { AuthCodePurpose, User } from "@prisma/client";
+import type { WithId } from "mongodb";
 
+import { getServerEnv } from "@/config/env/server-env";
+import type { AuthCodePurpose } from "@/lib/auth/constants";
+import { invalidateUserAccessSnapshot } from "@/lib/auth/access";
 import { db } from "@/lib/db/client";
+import { createDatabaseId } from "@/lib/db/id";
+import type { AuthCodeRecord, RoleRecord, UserRecord } from "@/lib/db/types";
+import { redisDelete, redisGet, redisIncrementWithExpiry } from "@/lib/redis/kv";
 
 interface CreateUserWithPasswordInput {
   fullName: string;
@@ -19,23 +25,74 @@ interface CreateAuthCodeInput {
   userId?: string;
 }
 
-export async function findUserByEmail(email: string): Promise<User | null> {
-  return db.user.findUnique({
-    where: {
-      email,
-    },
-  });
+function withoutMongoId<T extends { _id?: unknown }>(record: T): Omit<T, "_id"> {
+  const rest = { ...record } as T & { _id?: unknown };
+  delete rest._id;
+
+  return rest;
 }
 
-export async function findUserByPhone(phone: string): Promise<User | null> {
-  return db.user.findUnique({
-    where: {
-      phone,
-    },
-  });
+function toUserRecord(record: WithId<UserRecord> | null): UserRecord | null {
+  if (!record) {
+    return null;
+  }
+
+  return withoutMongoId(record) as UserRecord;
 }
 
-export async function findUserByIdentifier(identifier: string): Promise<User | null> {
+function toAuthCodeRecord(record: WithId<AuthCodeRecord> | null): AuthCodeRecord | null {
+  if (!record) {
+    return null;
+  }
+
+  return withoutMongoId(record) as AuthCodeRecord;
+}
+
+function buildAuthAttemptKey(authCodeId: string): string {
+  return `auth:code:attempts:${authCodeId}`;
+}
+
+async function readAuthAttemptCount(authCodeId: string): Promise<number | null> {
+  const rawValue = await redisGet(buildAuthAttemptKey(authCodeId));
+  if (!rawValue) {
+    return null;
+  }
+
+  const value = Number.parseInt(rawValue, 10);
+  return Number.isFinite(value) ? value : null;
+}
+
+function resolveAuthAttemptTtlSeconds(expiresAt?: Date): number {
+  const env = getServerEnv(process.env);
+
+  if (!expiresAt) {
+    return env.REDIS_TTL_AUTH_ATTEMPT_SECONDS;
+  }
+
+  const remainingMs = expiresAt.getTime() - Date.now();
+  if (remainingMs <= 0) {
+    return 1;
+  }
+
+  return Math.max(1, Math.ceil(remainingMs / 1_000));
+}
+
+export async function findUserByEmail(email: string): Promise<UserRecord | null> {
+  const user = await db.collections.users.findOne({ email });
+  return toUserRecord(user);
+}
+
+export async function findUserByPhone(phone: string): Promise<UserRecord | null> {
+  const user = await db.collections.users.findOne({ phone });
+  return toUserRecord(user);
+}
+
+export async function findUserById(id: string): Promise<UserRecord | null> {
+  const user = await db.collections.users.findOne({ id });
+  return toUserRecord(user);
+}
+
+export async function findUserByIdentifier(identifier: string): Promise<UserRecord | null> {
   if (identifier.includes("@")) {
     return findUserByEmail(identifier.toLowerCase());
   }
@@ -45,19 +102,40 @@ export async function findUserByIdentifier(identifier: string): Promise<User | n
 
 export async function createUserWithPassword(
   input: CreateUserWithPasswordInput,
-): Promise<User> {
-  return db.user.create({
-    data: {
-      name: input.fullName,
-      email: input.email,
-      phone: input.phone,
-      passwordHash: input.passwordHash,
-      emailVerified: input.emailVerified,
-      phoneVerified: input.phoneVerified ?? false,
-      isActive: true,
-      mustChangePassword: false,
+): Promise<UserRecord> {
+  const now = new Date();
+
+  const user: UserRecord = {
+    id: createDatabaseId(),
+    name: input.fullName,
+    ...(input.email ? { email: input.email } : {}),
+    ...(input.phone ? { phone: input.phone } : {}),
+    passwordHash: input.passwordHash,
+    emailVerified: input.emailVerified ?? null,
+    phoneVerified: input.phoneVerified ?? false,
+    isActive: true,
+    mustChangePassword: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.collections.users.insertOne(user);
+  return user;
+}
+
+async function findRoleBySlug(roleSlug: string): Promise<RoleRecord | null> {
+  const role = await db.collections.roles.findOne(
+    {
+      slug: roleSlug,
     },
-  });
+    {
+      projection: {
+        _id: 0,
+      },
+    },
+  );
+
+  return role;
 }
 
 export async function assignRoleToUserBySlug(
@@ -65,116 +143,152 @@ export async function assignRoleToUserBySlug(
   roleSlug: string,
   assignedById?: string,
 ): Promise<void> {
-  const role = await db.role.findUnique({
-    where: {
-      slug: roleSlug,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const role = await findRoleBySlug(roleSlug);
 
   if (!role) {
     return;
   }
 
-  await db.userRole.upsert({
-    where: {
-      userId_roleId: {
-        userId,
-        roleId: role.id,
-      },
+  await db.collections.userRoles.updateOne({
+    userId,
+    roleId: role.id,
+  }, {
+    $set: {
+      assignedById: assignedById ?? null,
+      assignedAt: new Date(),
     },
-    update: {
-      assignedById: assignedById ?? undefined,
-    },
-    create: {
+    $setOnInsert: {
       userId,
       roleId: role.id,
-      assignedById: assignedById ?? undefined,
     },
+  }, {
+    upsert: true,
   });
+
+  await invalidateUserAccessSnapshot(userId);
 }
 
 export async function deleteAuthCodesForIdentifier(
   identifier: string,
   purpose: AuthCodePurpose,
 ): Promise<void> {
-  await db.authCode.deleteMany({
-    where: {
-      identifier,
-      purpose,
-    },
-  });
+  await db.collections.authCodes.deleteMany({ identifier, purpose });
 }
 
 export async function createAuthCode(input: CreateAuthCodeInput) {
-  return db.authCode.create({
-    data: {
-      identifier: input.identifier,
-      purpose: input.purpose,
-      codeHash: input.codeHash,
-      expiresAt: input.expiresAt,
-      userId: input.userId,
-    },
-  });
+  const authCode: AuthCodeRecord = {
+    id: createDatabaseId(),
+    identifier: input.identifier,
+    purpose: input.purpose,
+    codeHash: input.codeHash,
+    expiresAt: input.expiresAt,
+    userId: input.userId,
+    attemptCount: 0,
+    consumedAt: null,
+    createdAt: new Date(),
+  };
+
+  await db.collections.authCodes.insertOne(authCode);
+  return authCode;
 }
 
 export async function getLatestAuthCode(identifier: string, purpose: AuthCodePurpose) {
-  return db.authCode.findFirst({
-    where: {
-      identifier,
-      purpose,
-      consumedAt: null,
-    },
-    orderBy: {
-      createdAt: "desc",
+  const authCode = await db.collections.authCodes.findOne({
+    identifier,
+    purpose,
+    consumedAt: null,
+  }, {
+    sort: {
+      createdAt: -1,
     },
   });
+
+  const normalizedCode = toAuthCodeRecord(authCode);
+  if (!normalizedCode) {
+    return null;
+  }
+
+  const throttledCount = await readAuthAttemptCount(normalizedCode.id);
+  if (throttledCount !== null && throttledCount > normalizedCode.attemptCount) {
+    return {
+      ...normalizedCode,
+      attemptCount: throttledCount,
+    };
+  }
+
+  return normalizedCode;
 }
 
 export async function incrementAuthCodeAttempt(authCodeId: string): Promise<void> {
-  await db.authCode.update({
-    where: { id: authCodeId },
-    data: {
-      attemptCount: {
-        increment: 1,
-      },
+  await db.collections.authCodes.updateOne({ id: authCodeId }, {
+    $inc: {
+      attemptCount: 1,
     },
   });
+
+  const authCode = await db.collections.authCodes.findOne(
+    { id: authCodeId },
+    { projection: { expiresAt: 1 } },
+  );
+
+  const counter = await redisIncrementWithExpiry(
+    buildAuthAttemptKey(authCodeId),
+    resolveAuthAttemptTtlSeconds(authCode?.expiresAt),
+  );
+
+  if (counter !== null) {
+    await db.collections.authCodes.updateOne(
+      { id: authCodeId },
+      {
+        $max: {
+          attemptCount: counter,
+        },
+      },
+    );
+  }
 }
 
 export async function consumeAuthCode(authCodeId: string): Promise<void> {
-  await db.authCode.update({
-    where: { id: authCodeId },
-    data: {
-      consumedAt: new Date(),
+  await db.collections.authCodes.updateOne(
+    { id: authCodeId },
+    {
+      $set: {
+        consumedAt: new Date(),
+      },
     },
-  });
+  );
+
+  await redisDelete(buildAuthAttemptKey(authCodeId));
 }
 
 export async function markUserEmailVerified(userId: string): Promise<void> {
-  await db.user.update({
-    where: {
+  await db.collections.users.updateOne(
+    {
       id: userId,
     },
-    data: {
-      emailVerified: new Date(),
+    {
+      $set: {
+        emailVerified: new Date(),
+        updatedAt: new Date(),
+      },
     },
-  });
+  );
 }
 
 export async function updateUserPassword(
   userId: string,
   passwordHash: string,
 ): Promise<void> {
-  await db.user.update({
-    where: {
+  await db.collections.users.updateOne(
+    {
       id: userId,
     },
-    data: {
-      passwordHash,
-      mustChangePassword: false,
+    {
+      $set: {
+        passwordHash,
+        mustChangePassword: false,
+        updatedAt: new Date(),
+      },
     },
-  });
+  );
 }

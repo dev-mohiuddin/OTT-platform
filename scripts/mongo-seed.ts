@@ -1,22 +1,14 @@
 import bcrypt from "bcryptjs";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
 
 import { getServerEnv } from "../src/config/env/server-env";
+import { db } from "../src/lib/db/client";
+import { createDatabaseId } from "../src/lib/db/id";
 
 const env = getServerEnv(process.env);
 
-if (!env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required to run Prisma seed.");
+if (!env.MONGODB_URI) {
+  throw new Error("MONGODB_URI is required to run MongoDB seed.");
 }
-
-const adapter = new PrismaPg({
-  connectionString: env.DATABASE_URL,
-});
-
-const prisma = new PrismaClient({
-  adapter,
-});
 
 const permissionSeed = [
   {
@@ -96,69 +88,91 @@ const roleSeed = [
 ] as const;
 
 async function upsertPermissions() {
+  const now = new Date();
+
   for (const permission of permissionSeed) {
-    await prisma.permission.upsert({
-      where: { key: permission.key },
-      update: {
-        label: permission.label,
-        description: permission.description,
-      },
-      create: {
+    await db.collections.permissions.updateOne(
+      {
         key: permission.key,
-        label: permission.label,
-        description: permission.description,
       },
-    });
+      {
+        $set: {
+          label: permission.label,
+          description: permission.description,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          id: createDatabaseId(),
+          key: permission.key,
+          createdAt: now,
+        },
+      },
+      {
+        upsert: true,
+      },
+    );
   }
 }
 
 async function syncRolePermissions(roleSlug: string, permissionKeys: readonly string[]) {
-  const role = await prisma.role.findUnique({ where: { slug: roleSlug } });
+  const role = await db.collections.roles.findOne(
+    { slug: roleSlug },
+    { projection: { _id: 0, id: 1 } },
+  );
+
   if (!role) {
     return;
   }
 
-  const permissions = await prisma.permission.findMany({
-    where: {
-      key: {
-        in: [...permissionKeys],
-      },
+  const permissions = await db.collections.permissions.find({
+    key: {
+      $in: [...permissionKeys],
     },
-    select: {
-      id: true,
-    },
-  });
+  }).project({ _id: 0, id: 1 }).toArray();
 
-  await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+  await db.collections.rolePermissions.deleteMany({ roleId: role.id });
 
   if (permissions.length === 0) {
     return;
   }
 
-  await prisma.rolePermission.createMany({
-    data: permissions.map((permission) => ({
+  await db.collections.rolePermissions.insertMany(
+    permissions.map((permission) => ({
       roleId: role.id,
       permissionId: permission.id,
+      createdAt: new Date(),
     })),
-  });
+    {
+      ordered: false,
+    },
+  );
 }
 
 async function upsertRoles() {
+  const now = new Date();
+
   for (const role of roleSeed) {
-    await prisma.role.upsert({
-      where: { slug: role.slug },
-      update: {
-        name: role.name,
-        description: role.description,
-        isSystem: role.isSystem,
-      },
-      create: {
+    await db.collections.roles.updateOne(
+      {
         slug: role.slug,
-        name: role.name,
-        description: role.description,
-        isSystem: role.isSystem,
       },
-    });
+      {
+        $set: {
+          name: role.name,
+          description: role.description,
+          isSystem: role.isSystem,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          id: createDatabaseId(),
+          slug: role.slug,
+          createdAt: now,
+        },
+      },
+      {
+        upsert: true,
+      },
+    );
 
     await syncRolePermissions(role.slug, role.permissions);
   }
@@ -168,9 +182,10 @@ async function upsertSuperAdmin() {
   const superAdminEmail = env.SUPER_ADMIN_EMAIL ?? "admin@admin.com";
   const superAdminPassword = env.SUPER_ADMIN_PASSWORD ?? "12345678";
 
-  const superAdminRole = await prisma.role.findUnique({
-    where: { slug: "super-admin" },
-  });
+  const superAdminRole = await db.collections.roles.findOne(
+    { slug: "super-admin" },
+    { projection: { _id: 0, id: 1 } },
+  );
 
   if (!superAdminRole) {
     throw new Error("Super admin role was not found during seed.");
@@ -178,52 +193,72 @@ async function upsertSuperAdmin() {
 
   const hashedPassword = await bcrypt.hash(superAdminPassword, 12);
 
-  const superAdmin = await prisma.user.upsert({
-    where: { email: superAdminEmail },
-    update: {
-      name: "Super Admin",
-      isActive: true,
-      emailVerified: new Date(),
-      passwordHash: hashedPassword,
-      mustChangePassword: true,
-    },
-    create: {
-      name: "Super Admin",
-      email: superAdminEmail,
-      isActive: true,
-      emailVerified: new Date(),
-      passwordHash: hashedPassword,
-      mustChangePassword: true,
-    },
-  });
+  const now = new Date();
 
-  await prisma.userRole.upsert({
-    where: {
-      userId_roleId: {
+  await db.collections.users.updateOne(
+    {
+      email: superAdminEmail,
+    },
+    {
+      $set: {
+        name: "Super Admin",
+        email: superAdminEmail,
+        isActive: true,
+        emailVerified: now,
+        passwordHash: hashedPassword,
+        phoneVerified: false,
+        mustChangePassword: true,
+        updatedAt: now,
+      },
+      $setOnInsert: {
+        id: createDatabaseId(),
+        createdAt: now,
+      },
+    },
+    {
+      upsert: true,
+    },
+  );
+
+  const superAdmin = await db.collections.users.findOne(
+    { email: superAdminEmail },
+    { projection: { _id: 0, id: 1 } },
+  );
+
+  if (!superAdmin) {
+    throw new Error("Super admin user was not found after upsert.");
+  }
+
+  await db.collections.userRoles.updateOne(
+    {
+      userId: superAdmin.id,
+      roleId: superAdminRole.id,
+    },
+    {
+      $set: {
+        assignedById: superAdmin.id,
+        assignedAt: now,
+      },
+      $setOnInsert: {
         userId: superAdmin.id,
         roleId: superAdminRole.id,
       },
     },
-    update: {
-      assignedById: superAdmin.id,
+    {
+      upsert: true,
     },
-    create: {
-      userId: superAdmin.id,
-      roleId: superAdminRole.id,
-      assignedById: superAdmin.id,
-    },
-  });
+  );
 
-  await prisma.adminAuditLog.create({
-    data: {
-      actorId: superAdmin.id,
-      action: "seed.super_admin.upsert",
-      targetType: "user",
-      targetId: superAdmin.id,
-      metadata: {
-        email: superAdminEmail,
-      },
+  await db.collections.adminAuditLogs.insertOne({
+    id: createDatabaseId(),
+    actorId: superAdmin.id,
+    action: "seed.super_admin.upsert",
+    targetType: "user",
+    targetId: superAdmin.id,
+    metadata: {
+      email: superAdminEmail,
     },
+    createdAt: now,
   });
 }
 
@@ -235,10 +270,10 @@ async function main() {
 
 main()
   .then(async () => {
-    await prisma.$disconnect();
+    await db.client.close();
   })
   .catch(async (error) => {
-    console.error("Prisma seed failed:", error);
-    await prisma.$disconnect();
+    console.error("MongoDB seed failed:", error);
+    await db.client.close();
     process.exit(1);
   });

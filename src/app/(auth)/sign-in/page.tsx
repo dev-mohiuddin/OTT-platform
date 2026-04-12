@@ -1,34 +1,122 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
 
+import {
+  loadAuthProviders,
+  signInWithCredentials,
+  signInWithGoogle,
+} from "@/api/domains/auth/client";
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { setLoginSuccessToastFlag } from "@/lib/auth/client-toast-flag";
+
+function resolveAuthErrorMessage(error: string, code?: string | null): string {
+  switch (error) {
+    case "Configuration":
+      return "Authentication request is invalid or server config has an issue. Use the Google button (not direct /api/auth/signin/google URL), hard refresh, then try again.";
+    case "AccessDenied":
+      return "Access denied for this account. Please contact support if this looks incorrect.";
+    case "Verification":
+      return "This verification link is invalid or expired.";
+    case "OAuthSignin":
+    case "OAuthCallback":
+    case "OAuthCreateAccount":
+      return "Google sign-in failed. Please try again.";
+    case "CredentialsSignin":
+      if (code === "credentials") {
+        return "Login failed. Check your credentials or verify your email first.";
+      }
+
+      return "Credentials sign-in failed. Please try again.";
+    default:
+      return "Sign-in failed. Please try again.";
+  }
+}
 
 export default function SignInPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isGoogleAvailable, setIsGoogleAvailable] = useState(false);
+  const [isProviderLoading, setIsProviderLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const searchParams = new URL(window.location.href).searchParams;
+    const error = searchParams.get("error");
+
+    if (!error) {
+      return;
+    }
+
+    setErrorMessage(resolveAuthErrorMessage(error, searchParams.get("code")));
+  }, []);
+
+  const resolveCallbackUrl = (): string => {
+    if (typeof window === "undefined") {
+      return "/browse";
+    }
+
+    const rawCallbackUrl = new URL(window.location.href).searchParams.get("callbackUrl");
+    return rawCallbackUrl && rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//")
+      ? rawCallbackUrl
+      : "/browse";
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProviders = async () => {
+      try {
+        const providers = await loadAuthProviders();
+        if (!isMounted) {
+          return;
+        }
+
+        setIsGoogleAvailable(Boolean(providers?.google));
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsGoogleAvailable(false);
+      } finally {
+        if (isMounted) {
+          setIsProviderLoading(false);
+        }
+      }
+    };
+
+    void loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleCredentialSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
+    const callbackUrl = resolveCallbackUrl();
 
-    const result = await signIn("credentials", {
+    const result = await signInWithCredentials({
       identifier,
       password,
-      redirect: false,
-      callbackUrl: "/home",
+      callbackUrl,
     });
 
     setIsSubmitting(false);
@@ -38,15 +126,51 @@ export default function SignInPage() {
       return;
     }
 
-    router.push(result.url ?? "/home");
+    setLoginSuccessToastFlag();
+    router.push(result.url ?? callbackUrl);
     router.refresh();
   };
 
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
-    await signIn("google", {
-      callbackUrl: "/home",
-    });
+    const callbackUrl = resolveCallbackUrl();
+
+    if (!isGoogleAvailable) {
+      setErrorMessage("Google sign-in is not available right now. Please use email/phone sign-in.");
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+
+    try {
+      const result = await signInWithGoogle({
+        callbackUrl,
+      });
+
+      if (!result) {
+        setErrorMessage("Google sign-in failed. Please try again.");
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      if (result.error) {
+        setErrorMessage(resolveAuthErrorMessage(result.error, result.code));
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      if (!result.url) {
+        setErrorMessage("Google sign-in failed. Please try again.");
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      setLoginSuccessToastFlag();
+      window.location.href = result.url;
+    } catch {
+      setErrorMessage("Google sign-in failed. Please try again.");
+      setIsGoogleSubmitting(false);
+    }
   };
 
   return (
@@ -118,8 +242,13 @@ export default function SignInPage() {
           variant="outline"
           className="h-10 border-ott-border-soft bg-background/70"
           onClick={handleGoogleSignIn}
+          disabled={isProviderLoading || !isGoogleAvailable || isGoogleSubmitting}
         >
-          Continue with Google
+          {isProviderLoading
+            ? "Checking Google..."
+            : (isGoogleAvailable
+              ? (isGoogleSubmitting ? "Redirecting..." : "Continue with Google")
+              : "Google (Unavailable)")}
         </Button>
         <Button variant="outline" className="h-10 border-ott-border-soft bg-background/70" disabled>
           Apple (Soon)

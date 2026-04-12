@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { resendEmailCode, verifyEmailCode } from "@/api/domains/auth";
 
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -43,26 +44,19 @@ export default function VerifyEmailPage() {
     setMessage(null);
     setIsSubmitting(true);
 
-    const response = await fetch("/api/v1/auth/verify-email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        code,
-      }),
+    const payload = await verifyEmailCode({
+      email,
+      code,
     });
 
-    const payload = await response.json();
     setIsSubmitting(false);
 
-    if (!response.ok || !payload.success) {
-      setErrorMessage(payload?.error?.message ?? "Failed to verify email.");
+    if (!payload.success) {
+      setErrorMessage(payload.message);
       return;
     }
 
-    setMessage("Email verified successfully. Redirecting to sign-in...");
+    setMessage(payload.data.message || "Email verified successfully. Redirecting to sign-in...");
     setTimeout(() => {
       router.push(`/sign-in?verified=1&email=${encodeURIComponent(email)}`);
     }, 900);
@@ -73,21 +67,14 @@ export default function VerifyEmailPage() {
     setMessage(null);
     setIsResending(true);
 
-    const response = await fetch("/api/v1/auth/resend-code", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-      }),
+    const payload = await resendEmailCode({
+      email,
     });
 
-    const payload = await response.json();
     setIsResending(false);
 
-    if (!response.ok || !payload.success) {
-      setErrorMessage(payload?.error?.message ?? "Failed to resend code.");
+    if (!payload.success) {
+      setErrorMessage(payload.message);
       return;
     }
 
@@ -103,7 +90,7 @@ export default function VerifyEmailPage() {
     >
       {deliveryState === "failed" ? (
         <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-          Account created, but email delivery failed earlier. Please use "Resend code" below.
+          Account created, but email delivery failed earlier. Please use &quot;Resend code&quot; below.
         </p>
       ) : null}
 

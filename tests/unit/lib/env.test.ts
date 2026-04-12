@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { getClientEnv } from "@/config/env/client-env";
-import { getAuthEnvRequired, getServerEnv, getSmtpEnvRequired } from "@/config/env/server-env";
+import {
+  getAuthEnvRequired,
+  getServerEnv,
+  getSmtpEnvRequired,
+} from "@/config/env/server-env";
 
 describe("config/env", () => {
   it("parses server env with defaults", () => {
     const env = getServerEnv({});
 
     expect(env.NODE_ENV).toBe("development");
+    expect(env.REDIS_ENABLED).toBe(true);
+    expect(env.REDIS_TTL_ACCESS_SNAPSHOT_SECONDS).toBe(600);
+    expect(env.REDIS_TTL_AUTH_ATTEMPT_SECONDS).toBe(900);
+    expect(env.API_RATE_LIMIT_WINDOW_SECONDS).toBe(60);
+    expect(env.API_RATE_LIMIT_MAX_REQUESTS).toBe(120);
     expect(env.DEFAULT_COUNTRY_CODE).toBe("BD");
     expect(env.DEFAULT_LOCALE).toBe("bn-BD");
     expect(env.DEFAULT_CURRENCY).toBe("BDT");
@@ -53,25 +62,63 @@ describe("config/env", () => {
 
   it("requires auth env in auth runtime helper", () => {
     const env = getAuthEnvRequired({
-      DATABASE_URL: "postgresql://localhost:5432/ott_platform",
-      NEXTAUTH_URL: "http://localhost:3000",
+      MONGODB_URI: "mongodb://localhost:27017/ott_platform",
       NEXTAUTH_SECRET: "super-secret",
-      GOOGLE_CLIENT_ID: "id-123",
-      GOOGLE_CLIENT_SECRET: "secret-123",
     });
 
+    expect(env.MONGODB_URI).toBe("mongodb://localhost:27017/ott_platform");
     expect(env.NEXTAUTH_SECRET).toBe("super-secret");
   });
 
-  it("throws when NEXTAUTH_URL is missing in auth runtime helper", () => {
+  it("throws when NEXTAUTH_URL is missing in production auth runtime helper", () => {
     expect(() => {
       getAuthEnvRequired({
-        DATABASE_URL: "postgresql://localhost:5432/ott_platform",
+        NODE_ENV: "production",
+        MONGODB_URI: "mongodb://localhost:27017/ott_platform",
         NEXTAUTH_SECRET: "super-secret",
-        GOOGLE_CLIENT_ID: "id-123",
-        GOOGLE_CLIENT_SECRET: "secret-123",
       });
     }).toThrow("Missing NEXTAUTH_URL in server environment.");
+  });
+
+  it("throws when NEXTAUTH_URL is not https in production", () => {
+    expect(() => {
+      getAuthEnvRequired({
+        NODE_ENV: "production",
+        NEXTAUTH_URL: "http://example.com",
+        MONGODB_URI: "mongodb://localhost:27017/ott_platform",
+        NEXTAUTH_SECRET: "super-secret",
+      });
+    }).toThrow("NEXTAUTH_URL must use https in production environment.");
+  });
+
+  it("throws when NEXTAUTH_URL contains path, query, or hash", () => {
+    expect(() => {
+      getAuthEnvRequired({
+        NEXTAUTH_URL: "http://localhost:3000/auth?x=1",
+        MONGODB_URI: "mongodb://localhost:27017/ott_platform",
+        NEXTAUTH_SECRET: "super-secret",
+      });
+    }).toThrow("NEXTAUTH_URL must be origin-only without path, query, or hash.");
+  });
+
+  it("throws when only one Google OAuth variable is set", () => {
+    expect(() => {
+      getAuthEnvRequired({
+        MONGODB_URI: "mongodb://localhost:27017/ott_platform",
+        NEXTAUTH_SECRET: "super-secret",
+        GOOGLE_CLIENT_ID: "id-123",
+      });
+    }).toThrow(
+      "Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together in server environment.",
+    );
+  });
+
+  it("returns undefined MONGODB_URI when not provided", () => {
+    const env = getServerEnv({
+      NODE_ENV: "development",
+    });
+
+    expect(env.MONGODB_URI).toBeUndefined();
   });
 
   it("requires smtp env in smtp runtime helper", () => {

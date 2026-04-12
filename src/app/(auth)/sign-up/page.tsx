@@ -3,8 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import {
+  signUp,
+} from "@/api/domains/auth";
+import {
+  signInWithCredentials,
+  signInWithGoogle,
+} from "@/api/domains/auth/client";
 
+import { setLoginSuccessToastFlag } from "@/lib/auth/client-toast-flag";
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +20,21 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 type SignUpMethod = "email" | "phone";
+
+function resolveOAuthErrorMessage(error: string): string {
+  switch (error) {
+    case "Configuration":
+      return "Authentication request is invalid or server config has an issue. Use the Google button and try again after a hard refresh.";
+    case "OAuthSignin":
+    case "OAuthCallback":
+    case "OAuthCreateAccount":
+      return "Google sign-in failed. Please try again.";
+    case "AccessDenied":
+      return "Access denied for this account.";
+    default:
+      return "Google sign-in failed. Please try again.";
+  }
+}
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -25,6 +47,7 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -43,40 +66,32 @@ export default function SignUpPage() {
 
     setIsSubmitting(true);
 
-    const response = await fetch("/api/v1/auth/sign-up", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        method,
-        fullName,
-        email: method === "email" ? email : undefined,
-        phone: method === "phone" ? phone : undefined,
-        password,
-      }),
+    const payload = await signUp({
+      method,
+      fullName,
+      email: method === "email" ? email : undefined,
+      phone: method === "phone" ? phone : undefined,
+      password,
     });
 
-    const payload = await response.json();
     setIsSubmitting(false);
 
-    if (!response.ok || !payload.success) {
-      setErrorMessage(payload?.error?.message ?? "Failed to create account.");
+    if (!payload.success) {
+      setErrorMessage(payload.message);
       return;
     }
 
     if (method === "email") {
-      const emailSent = payload?.data?.emailSent !== false;
+      const emailSent = payload.data.emailSent !== false;
       const deliveryQuery = emailSent ? "" : "&delivery=failed";
       router.push(`/verify-email?email=${encodeURIComponent(email)}${deliveryQuery}`);
       return;
     }
 
-    const loginResult = await signIn("credentials", {
+    const loginResult = await signInWithCredentials({
       identifier: phone,
       password,
-      redirect: false,
-      callbackUrl: "/home",
+      callbackUrl: "/browse",
     });
 
     if (!loginResult || loginResult.error) {
@@ -84,15 +99,45 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push(loginResult.url ?? "/home");
+    setLoginSuccessToastFlag();
+    router.push(loginResult.url ?? "/browse");
     router.refresh();
   };
 
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
-    await signIn("google", {
-      callbackUrl: "/home",
-    });
+
+    setIsGoogleSubmitting(true);
+
+    try {
+      const result = await signInWithGoogle({
+        callbackUrl: "/browse",
+      });
+
+      if (!result) {
+        setErrorMessage("Google sign-in failed. Please try again.");
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      if (result.error) {
+        setErrorMessage(resolveOAuthErrorMessage(result.error));
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      if (!result.url) {
+        setErrorMessage("Google sign-in failed. Please try again.");
+        setIsGoogleSubmitting(false);
+        return;
+      }
+
+      setLoginSuccessToastFlag();
+      window.location.href = result.url;
+    } catch {
+      setErrorMessage("Google sign-in failed. Please try again.");
+      setIsGoogleSubmitting(false);
+    }
   };
 
   return (
@@ -107,7 +152,7 @@ export default function SignUpPage() {
           type="button"
           className={`h-8 rounded-full text-sm font-medium transition-colors ${
             method === "email"
-              ? "bg-[#7300ff] text-white"
+              ? "bg-ott-brand-violet text-white"
               : "text-ott-text-secondary hover:bg-black/6 dark:hover:bg-white/10"
           }`}
           onClick={() => setMethod("email")}
@@ -118,7 +163,7 @@ export default function SignUpPage() {
           type="button"
           className={`h-8 rounded-full text-sm font-medium transition-colors ${
             method === "phone"
-              ? "bg-[#7300ff] text-white"
+              ? "bg-ott-brand-violet text-white"
               : "text-ott-text-secondary hover:bg-black/6 dark:hover:bg-white/10"
           }`}
           onClick={() => setMethod("phone")}
@@ -228,8 +273,9 @@ export default function SignUpPage() {
         variant="outline"
         className="h-10 w-full border-ott-border-soft bg-background/70"
         onClick={handleGoogleSignIn}
+        disabled={isGoogleSubmitting}
       >
-        Continue with Google
+        {isGoogleSubmitting ? "Redirecting..." : "Continue with Google"}
       </Button>
 
       <p className="mt-6 text-sm text-ott-text-secondary">

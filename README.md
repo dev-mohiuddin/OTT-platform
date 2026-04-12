@@ -1,12 +1,13 @@
 # Dristy OTT Platform
 
-Modern OTT platform built with Next.js 16, NextAuth, Prisma 7, PostgreSQL, and a custom RBAC-based admin panel.
+Modern OTT platform built with Next.js 16, NextAuth, MongoDB, Redis, and a custom RBAC-based admin panel.
 
 ## Prerequisites
 
 - Node.js 20+
 - npm 10+
-- PostgreSQL running locally
+- MongoDB running locally
+- Redis running locally
 
 ## Local Setup
 
@@ -24,7 +25,10 @@ copy .env.example .env.local
 
 3. Fill required values in `.env.local`.
 
-- `DATABASE_URL`
+- `MONGODB_URI`
+- `MONGODB_DB_NAME` (optional if URI already contains DB name)
+- `REDIS_URL`
+- `REDIS_ENABLED`
 - `NEXTAUTH_URL`
 - `NEXTAUTH_SECRET`
 - `AUTH_TRUST_HOST` (recommended `true` for local proxy/tunnel setups)
@@ -37,17 +41,16 @@ copy .env.example .env.local
 
 For Gmail SMTP, `SMTP_PASS` must be an App Password.
 
-4. Ensure the database in `DATABASE_URL` exists.
+4. Ensure MongoDB and Redis are running and reachable from `.env.local`.
 
-- If you use `psql`, run `createdb -U postgres ott_platform`.
-- If you use pgAdmin or another GUI client, create database `ott_platform` manually.
+- Typical local values:
+	- `MONGODB_URI="mongodb://localhost:27017/ott_platform"`
+	- `REDIS_URL="redis://localhost:6379"`
 
-5. Generate Prisma client, run migration, then seed baseline auth data.
+5. Seed baseline auth and RBAC data.
 
 ```bash
-npm run prisma:generate
-npm run prisma:migrate -- --name init
-npm run prisma:seed
+npm run db:seed
 ```
 
 6. Start the app.
@@ -76,8 +79,8 @@ Check all of these:
 - `NEXTAUTH_SECRET` is present and non-empty in `.env.local`
 - `AUTH_TRUST_HOST` is set to `true` if you use proxy/tunnel based local access
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are valid
-- PostgreSQL server is running
-- Prisma migration has been applied (`npm run prisma:migrate -- --name init`)
+- MongoDB server is running and reachable from `MONGODB_URI`
+- Redis server is running and reachable from `REDIS_URL`
 
 ### `/sign-in?error=OAuthAccountNotLinked`
 
@@ -86,16 +89,14 @@ This happens when a credential account already exists with the same email and au
 - Set `GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING=true` in `.env.local` if you want auto-linking for same-email users.
 - Restart dev server after changing env values.
 
-### Prisma AdapterError about missing database or tables
+### Mongo adapter/database configuration issues
 
-This means local DB bootstrap is incomplete.
+This usually means local datastore bootstrap is incomplete.
 
 Run:
 
 ```bash
-npm run prisma:generate
-npm run prisma:migrate -- --name init
-npm run prisma:seed
+npm run db:seed
 ```
 
 ### `SMTP_FROM` zod validation error
@@ -123,5 +124,5 @@ Email sign-up now remains successful when SMTP has temporary transport issues.
 
 ## Notes
 
-- Prisma 7 in this repository is configured through `prisma.config.ts`.
-- Seed command is configured in `prisma.config.ts` under `migrations.seed`.
+- Authentication and RBAC persistence are backed by MongoDB collections.
+- Rate limiting and access snapshot caching are backed by Redis.

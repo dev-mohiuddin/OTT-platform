@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist_Mono, Playfair_Display, Space_Grotesk } from "next/font/google";
 
 import { AuthProvider } from "@/providers/auth/auth-provider";
+import { ReduxProvider } from "@/providers/redux/redux-provider";
 import { ThemeProvider } from "@/providers/theme/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
 
@@ -45,14 +47,17 @@ export default function RootLayout({
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col text-ott-text-primary">
         <AuthProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
+          <ReduxProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster position="top-center" richColors />
+            </ThemeProvider>
+          </ReduxProvider>
         </AuthProvider>
       </body>
     </html>

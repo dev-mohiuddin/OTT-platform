@@ -1,9 +1,9 @@
-import { HTTP_STATUS, type HttpStatusCode } from "@/server/common/constants/http-status";
+import { type HttpStatusCode } from "@/server/common/constants/http-status";
 import type { PaginationMeta } from "@/server/common/contracts/pagination.contract";
 import { createRequestContext, type CreateRequestContextOptions, type RequestContext } from "@/server/common/context/request-context";
 import { createAppErrorFromUnknown } from "@/server/common/errors/app-error";
-import { createErrorEnvelope } from "@/server/common/http/error-envelope";
-import { createSuccessEnvelope } from "@/server/common/http/success-envelope";
+import { createErrorJsonResponse, createSuccessJsonResponse } from "@/server/common/http/json-response";
+import { enforceRateLimit } from "@/server/common/http/rate-limit";
 import { serverLogger, type ServerLogger } from "@/server/common/logging/server-logger";
 
 export interface RouteHandlerOutput<TData> {
@@ -36,25 +36,17 @@ export function withApiHandler<TData, TContext = unknown>(
     });
 
     try {
+      await enforceRateLimit(requestContext);
+
       const result = await handler(request, context, requestContext);
 
       if (result instanceof Response) {
         return result;
       }
 
-      const statusCode = result.statusCode ?? HTTP_STATUS.OK;
-      const payload = createSuccessEnvelope(result.data, {
-        requestId: requestContext.requestId,
-        traceId: requestContext.traceId,
-        timestamp: requestContext.timestamp,
-        locale: requestContext.locale,
-        country: requestContext.country,
-        currency: requestContext.currency,
+      return createSuccessJsonResponse(result.data, requestContext, {
+        statusCode: result.statusCode,
         pagination: result.pagination,
-      });
-
-      return Response.json(payload, {
-        status: statusCode,
       });
     } catch (error: unknown) {
       const appError = createAppErrorFromUnknown(error);
@@ -69,18 +61,7 @@ export function withApiHandler<TData, TContext = unknown>(
         error,
       });
 
-      const payload = createErrorEnvelope(appError, {
-        requestId: requestContext.requestId,
-        traceId: requestContext.traceId,
-        timestamp: requestContext.timestamp,
-        locale: requestContext.locale,
-        country: requestContext.country,
-        currency: requestContext.currency,
-      });
-
-      return Response.json(payload, {
-        status: appError.statusCode,
-      });
+      return createErrorJsonResponse(appError, requestContext);
     }
   };
 }

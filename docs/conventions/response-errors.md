@@ -10,7 +10,11 @@ This structure is reserved so every API returns a consistent envelope.
 	"data": {},
 	"meta": {
 		"requestId": "...",
-		"timestamp": "..."
+		"traceId": "...",
+		"method": "POST",
+		"path": "/api/v1/auth/sign-up",
+		"timestamp": "...",
+		"version": "v1"
 	}
 }
 ```
@@ -27,7 +31,11 @@ This structure is reserved so every API returns a consistent envelope.
 	},
 	"meta": {
 		"requestId": "...",
-		"timestamp": "..."
+		"traceId": "...",
+		"method": "POST",
+		"path": "/api/v1/auth/sign-up",
+		"timestamp": "...",
+		"version": "v1"
 	}
 }
 ```
@@ -42,3 +50,9 @@ This structure is reserved so every API returns a consistent envelope.
 ## Goal
 
 Keep response and error format identical across all modules, including payment and webhook-related endpoints.
+
+## Frontend Handling Rule
+
+- Page/components should call domain API functions from `src/api/domains/*`.
+- Domain APIs should use `API` + `handleRequest` from `src/api/lib/api`.
+- Frontend should show server-provided messages (or mapped friendly fallbacks) via inline message or toast.

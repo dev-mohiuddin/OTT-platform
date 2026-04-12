@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { requestPasswordReset } from "@/api/domains/auth";
 
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -23,21 +24,14 @@ export default function ForgotPasswordPage() {
     setMessage(null);
     setIsSubmitting(true);
 
-    const response = await fetch("/api/v1/auth/forgot-password", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-      }),
+    const payload = await requestPasswordReset({
+      email,
     });
 
-    const payload = await response.json();
     setIsSubmitting(false);
 
-    if (!response.ok || !payload.success) {
-      setErrorMessage(payload?.error?.message ?? "Could not send reset code.");
+    if (!payload.success) {
+      setErrorMessage(payload.message);
       return;
     }
 

@@ -2,7 +2,6 @@ import { AppError } from "@/server/common/errors/app-error";
 import { API_ERROR_CODES } from "@/server/common/errors/error-codes";
 import { normalizeIdentifier } from "@/lib/auth/code";
 import { hashPassword, validatePasswordStrength } from "@/lib/auth/password";
-import { db } from "@/lib/db/client";
 import {
   assignUserRoleSchema,
   createAdminUserSchema,
@@ -11,9 +10,11 @@ import {
 } from "@/server/modules/admin/validators/rbac.schemas";
 import {
   assignRoleToUser,
+  createAdminUser,
   createAdminAuditLog,
   createPermission,
   createRole,
+  findRolesBySlugs,
   findPermissionsByKeys,
   findUserByEmail,
   findUserById,
@@ -147,17 +148,7 @@ export async function createAdminUserUseCase(
     });
   }
 
-  const roles = await db.role.findMany({
-    where: {
-      slug: {
-        in: input.roleSlugs,
-      },
-    },
-    select: {
-      id: true,
-      slug: true,
-    },
-  });
+  const roles = await findRolesBySlugs(input.roleSlugs);
 
   if (roles.length !== input.roleSlugs.length) {
     const existingRoleSlugs = new Set(roles.map((role) => role.slug));
@@ -174,15 +165,10 @@ export async function createAdminUserUseCase(
 
   const passwordHash = await hashPassword(input.password);
 
-  const adminUser = await db.user.create({
-    data: {
-      name: input.fullName,
-      email: normalizedEmail,
-      passwordHash,
-      emailVerified: new Date(),
-      mustChangePassword: true,
-      isActive: true,
-    },
+  const adminUser = await createAdminUser({
+    fullName: input.fullName,
+    email: normalizedEmail,
+    passwordHash,
   });
 
   await Promise.all(

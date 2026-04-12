@@ -12,6 +12,8 @@ export interface ApiMetaEnvelope {
 	traceId?: string;
 	timestamp: string;
 	version: string;
+	method?: string;
+	path?: string;
 	locale?: string;
 	country?: string;
 	currency?: string;

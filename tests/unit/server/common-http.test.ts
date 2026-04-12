@@ -16,6 +16,8 @@ describe("server/common/http", () => {
       {
         requestId: "req_abc1234567",
         traceId: "0123456789abcdef0123456789abcdef",
+        method: "GET",
+        path: "/api/v1/health",
       },
     );
 
@@ -23,6 +25,8 @@ describe("server/common/http", () => {
     expect(result.data).toEqual({ ok: true });
     expect(result.meta.requestId).toBe("req_abc1234567");
     expect(result.meta.version).toBe("v1");
+    expect(result.meta.method).toBe("GET");
+    expect(result.meta.path).toBe("/api/v1/health");
   });
 
   it("creates an exposed error envelope from AppError", () => {
@@ -38,6 +42,8 @@ describe("server/common/http", () => {
     const envelope = createErrorEnvelope(error, {
       requestId: "req_abc1234567",
       traceId: "0123456789abcdef0123456789abcdef",
+      method: "GET",
+      path: "/api/v1/admin",
     });
 
     expect(envelope.success).toBe(false);
@@ -45,6 +51,8 @@ describe("server/common/http", () => {
     expect(envelope.error.message).toBe("Resource not found");
     expect(envelope.error.status).toBe(HTTP_STATUS.NOT_FOUND);
     expect(envelope.error.details).toEqual({ id: "title_1" });
+    expect(envelope.meta.method).toBe("GET");
+    expect(envelope.meta.path).toBe("/api/v1/admin");
   });
 
   it("wraps route handlers in a consistent success response", async () => {
@@ -74,7 +82,7 @@ describe("server/common/http", () => {
     const payload = (await response.json()) as {
       success: boolean;
       data: { health: string };
-      meta: { locale: string; country: string; currency: string };
+      meta: { locale: string; country: string; currency: string; method: string; path: string };
     };
 
     expect(response.status).toBe(HTTP_STATUS.CREATED);
@@ -83,6 +91,8 @@ describe("server/common/http", () => {
     expect(payload.meta.locale).toBe("bn-BD");
     expect(payload.meta.country).toBe("BD");
     expect(payload.meta.currency).toBe("BDT");
+    expect(payload.meta.method).toBe("GET");
+    expect(payload.meta.path).toBe("/api/v1/health");
   });
 
   it("wraps thrown errors in a consistent error response", async () => {
@@ -116,5 +126,49 @@ describe("server/common/http", () => {
     expect(payload.error.code).toBe(API_ERROR_CODES.FORBIDDEN);
     expect(payload.error.message).toBe("Forbidden area");
     expect(payload.meta.requestId).toBeTruthy();
+  });
+
+  it("adds pagination metadata automatically for array responses", async () => {
+    const handler = withApiHandler(async () => {
+      return {
+        data: [
+          { id: "role_1" },
+          { id: "role_2" },
+        ],
+      };
+    });
+
+    const response = await handler(
+      new Request("https://example.com/api/v1/admin/roles", {
+        method: "GET",
+      }),
+      {},
+    );
+
+    const payload = (await response.json()) as {
+      success: boolean;
+      data: Array<{ id: string }>;
+      meta: {
+        pagination?: {
+          page: number;
+          limit: number;
+          totalItems: number;
+          totalPages: number;
+          hasNextPage: boolean;
+          hasPreviousPage: boolean;
+        };
+      };
+    };
+
+    expect(payload.success).toBe(true);
+    expect(payload.data).toHaveLength(2);
+    expect(payload.meta.pagination).toEqual({
+      page: 1,
+      limit: 2,
+      totalItems: 2,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
   });
 });

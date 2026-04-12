@@ -18,6 +18,12 @@
 
         --ott-gradient-cta:
                 linear-gradient(122deg, oklch(0.58 0.24 301) 0%, oklch(0.53 0.24 299) 48%, oklch(0.47 0.2 292) 100%);
+
+        --ott-gradient-cta-hover:
+                linear-gradient(122deg, oklch(0.53 0.24 301) 0%, oklch(0.48 0.23 299) 48%, oklch(0.43 0.2 292) 100%);
+        --ott-cta-border: oklch(0.47 0.21 295 / 60%);
+        --ott-cta-shadow: 0 12px 26px -18px oklch(0.43 0.25 301 / 56%);
+        --ott-cta-shadow-hover: 0 14px 28px -18px oklch(0.43 0.25 301 / 62%);
 }
 
 .dark {
@@ -40,4 +46,10 @@
 
         --ott-gradient-cta:
                 linear-gradient(122deg, oklch(0.42 0.22 294) 0%, oklch(0.37 0.2 291) 52%, oklch(0.32 0.16 286) 100%);
+
+        --ott-gradient-cta-hover:
+                linear-gradient(122deg, oklch(0.47 0.24 299) 0%, oklch(0.41 0.22 295) 52%, oklch(0.36 0.18 289) 100%);
+        --ott-cta-border: oklch(0.69 0.16 300 / 44%);
+        --ott-cta-shadow: 0 12px 28px -18px oklch(0.56 0.25 301 / 62%);
+        --ott-cta-shadow-hover: 0 14px 30px -18px oklch(0.56 0.25 301 / 70%);
 }

@@ -4,7 +4,10 @@
 
 Use these values in `.env.local`:
 
-- `DATABASE_URL`
+- `MONGODB_URI`
+- `MONGODB_DB_NAME` (optional)
+- `REDIS_URL`
+- `REDIS_ENABLED`
 - `NEXTAUTH_URL`
 - `NEXTAUTH_SECRET`
 - `GOOGLE_CLIENT_ID`
@@ -32,6 +35,27 @@ In Google Cloud Console, configure an OAuth client with the exact redirect URI:
 - `http://localhost:3000/api/auth/callback/google`
 
 For production, add your production domain callback URI exactly as used by `NEXTAUTH_URL`.
+
+### NEXTAUTH_URL Rules
+
+- Use origin-only format, for example: `http://localhost:3000`.
+- Do not include path, query, or hash.
+- In production, use `https://`.
+
+### Callback URL Checklist
+
+For each environment, callback URI must match exactly with `NEXTAUTH_URL`:
+
+- Local: `http://localhost:3000/api/auth/callback/google`
+- Production: `https://your-domain.com/api/auth/callback/google`
+
+Any protocol, port, or domain mismatch will cause Google OAuth redirect failure.
+
+### Account Linking Safety
+
+- `GOOGLE_ALLOW_EMAIL_ACCOUNT_LINKING` defaults to `false`.
+- Keep it `false` unless you intentionally want same-email credential accounts to auto-link with Google.
+- Auto-linking increases account takeover risk when email access is compromised.
 
 ## Signup Reliability Behavior
 
