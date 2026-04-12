@@ -5,7 +5,8 @@ import { auth } from "@/auth";
 import { ThemeToggle } from "@/components/ott/layout/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PublicHeaderAuthButtons } from "@/components/ott/navigation/public-header-auth-buttons";
+import { PublicHeaderAuthButtons } from "./public-header-auth-buttons";
+import { getUserInitials } from "../../../lib/formatters/initials";
 
 const navItems = [
   {
@@ -40,12 +41,7 @@ export async function PublicHeader() {
 
   const userName = session?.user?.name || "User";
   const userEmail = session?.user?.email || "";
-  const userInitials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const userInitials = getUserInitials(session?.user?.name);
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-ott-border-soft/70 bg-white/85 backdrop-blur-xl dark:bg-black/55">

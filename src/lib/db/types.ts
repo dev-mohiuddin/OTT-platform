@@ -96,3 +96,35 @@ export interface AdminAuditLogRecord {
   metadata?: Record<string, unknown> | null;
   createdAt: Date;
 }
+
+export interface AdminFeatureFlagRecord {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AdminUploadDraftRecord {
+  id: string;
+  title: string;
+  slug: string;
+  synopsis: string;
+  thumbnailUrl: string;
+  sourceFileName: string;
+  language: string;
+  genre: string;
+  qualityPreset: string;
+  accessMode: "subscription" | "ticket" | "hybrid";
+  minimumTier: "free" | "basic" | "standard" | "premium";
+  ticketPrice?: number | null;
+  ticketExpiresAt?: Date | null;
+  isFeatured: boolean;
+  isKidsSafe: boolean;
+  allowPreview: boolean;
+  status: "draft";
+  createdById: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

@@ -49,5 +49,9 @@ export interface AuthMessageResult {
 
 export interface AuthSessionResult {
   isAuthenticated: boolean;
-  user: unknown;
+  user: {
+    id?: string;
+    roles?: string[];
+    permissions?: string[];
+  } | null;
 }

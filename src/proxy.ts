@@ -1,12 +1,7 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-import { auth } from "@/auth";
-import { hasPermission } from "@/lib/auth/access";
 import { ADMIN_PERMISSION } from "@/lib/auth/constants";
-import { createRequestContext } from "@/server/common/context/request-context";
-import { AppError } from "@/server/common/errors/app-error";
-import { API_ERROR_CODES } from "@/server/common/errors/error-codes";
-import { createErrorJsonResponse } from "@/server/common/http/json-response";
 
 const authPages = new Set([
   "/sign-in",
@@ -33,10 +28,35 @@ const protectedUserPrefixes = [
 
 const protectedAdminPrefixes = ["/admin", "/api/v1/admin"];
 
-export default auth((request) => {
+function hasPermission(permissions: unknown, requiredPermission: string): boolean {
+  return Array.isArray(permissions) && permissions.includes(requiredPermission);
+}
+
+function createApiErrorResponse(
+  status: 401 | 403,
+  code: "UNAUTHORIZED" | "FORBIDDEN",
+  message: string,
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code,
+        message,
+        status,
+      },
+    },
+    { status },
+  );
+}
+
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isLoggedIn = Boolean(request.auth?.user?.id);
-  const requestContext = createRequestContext(request);
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+  const isLoggedIn = Boolean(token?.sub);
 
   const isAuthPage = authPages.has(pathname);
   const isUserProtected = protectedUserPrefixes.some((prefix) =>
@@ -52,33 +72,16 @@ export default auth((request) => {
 
   if (!isLoggedIn && (isUserProtected || isAdminProtected)) {
     if (pathname.startsWith("/api/")) {
-      return createErrorJsonResponse(
-        new AppError("Authentication is required.", {
-          code: API_ERROR_CODES.UNAUTHORIZED,
-          expose: true,
-        }),
-        requestContext,
-      );
+      return createApiErrorResponse(401, "UNAUTHORIZED", "Authentication is required.");
     }
 
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
-  if (isAdminProtected && request.auth?.user) {
-    const access = {
-      roles: request.auth.user.roles ?? [],
-      permissions: request.auth.user.permissions ?? [],
-    };
-
-    if (!hasPermission(access, ADMIN_PERMISSION.PANEL_ACCESS)) {
+  if (isAdminProtected && isLoggedIn) {
+    if (!hasPermission(token?.permissions, ADMIN_PERMISSION.PANEL_ACCESS)) {
       if (pathname.startsWith("/api/")) {
-        return createErrorJsonResponse(
-          new AppError("Admin access required.", {
-            code: API_ERROR_CODES.FORBIDDEN,
-            expose: true,
-          }),
-          requestContext,
-        );
+        return createApiErrorResponse(403, "FORBIDDEN", "Admin access required.");
       }
 
       return NextResponse.redirect(new URL("/browse", request.url));
@@ -86,7 +89,7 @@ export default auth((request) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [

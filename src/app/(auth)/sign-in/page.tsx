@@ -9,6 +9,7 @@ import {
   signInWithCredentials,
   signInWithGoogle,
 } from "@/api/domains/auth/client";
+import { fetchAuthSession } from "@/api/domains/auth";
 import { AuthShell } from "@/components/ott/layout/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,8 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { setLoginSuccessToastFlag } from "@/lib/auth/client-toast-flag";
+import { ADMIN_PERMISSION } from "@/lib/auth/constants";
+import { DEFAULT_ERROR_MESSAGES, type ApiErrorCode } from "@/server/common/errors/error-codes";
+
+function isApiErrorCode(value: string): value is ApiErrorCode {
+  return value in DEFAULT_ERROR_MESSAGES;
+}
 
 function resolveAuthErrorMessage(error: string, code?: string | null): string {
+  if (code && isApiErrorCode(code)) {
+    return DEFAULT_ERROR_MESSAGES[code];
+  }
+
   switch (error) {
     case "Configuration":
       return "Authentication request is invalid or server config has an issue. Use the Google button (not direct /api/auth/signin/google URL), hard refresh, then try again.";
@@ -30,10 +41,6 @@ function resolveAuthErrorMessage(error: string, code?: string | null): string {
     case "OAuthCreateAccount":
       return "Google sign-in failed. Please try again.";
     case "CredentialsSignin":
-      if (code === "credentials") {
-        return "Login failed. Check your credentials or verify your email first.";
-      }
-
       return "Credentials sign-in failed. Please try again.";
     default:
       return "Sign-in failed. Please try again.";
@@ -107,6 +114,20 @@ export default function SignInPage() {
     };
   }, []);
 
+  const resolvePostLoginUrl = async (fallbackUrl: string): Promise<string> => {
+    const sessionResult = await fetchAuthSession();
+    if (!sessionResult.success || !sessionResult.data.isAuthenticated || !sessionResult.data.user) {
+      return fallbackUrl;
+    }
+
+    const hasAdminAccess = sessionResult.data.user.permissions?.includes(ADMIN_PERMISSION.PANEL_ACCESS);
+    if (hasAdminAccess) {
+      return "/admin";
+    }
+
+    return fallbackUrl;
+  };
+
   const handleCredentialSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
@@ -122,12 +143,13 @@ export default function SignInPage() {
     setIsSubmitting(false);
 
     if (!result || result.error) {
-      setErrorMessage("Login failed. Check your credentials or verify your email first.");
+      setErrorMessage(resolveAuthErrorMessage(result?.error ?? "CredentialsSignin", result?.code));
       return;
     }
 
     setLoginSuccessToastFlag();
-    router.push(result.url ?? callbackUrl);
+    const targetUrl = await resolvePostLoginUrl(result.url ?? callbackUrl);
+    router.push(targetUrl);
     router.refresh();
   };
 

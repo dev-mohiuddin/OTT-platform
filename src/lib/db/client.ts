@@ -5,10 +5,13 @@ import {
 } from "mongodb";
 
 import { getServerEnv } from "@/config/env/server-env";
+import { seedDefaultAuthData } from "./bootstrap-defaults";
 import { serverLogger } from "@/server/common/logging/server-logger";
 import type {
   AccountRecord,
   AdminAuditLogRecord,
+  AdminFeatureFlagRecord,
+  AdminUploadDraftRecord,
   AuthCodeRecord,
   PermissionRecord,
   RolePermissionRecord,
@@ -30,6 +33,8 @@ export interface DatabaseCollections {
   userRoles: Collection<UserRoleRecord>;
   rolePermissions: Collection<RolePermissionRecord>;
   adminAuditLogs: Collection<AdminAuditLogRecord>;
+  adminFeatureFlags: Collection<AdminFeatureFlagRecord>;
+  adminUploadDrafts: Collection<AdminUploadDraftRecord>;
 }
 
 export interface DatabaseClient {
@@ -155,6 +160,11 @@ async function ensureIndexes(collections: DatabaseCollections): Promise<void> {
     collections.adminAuditLogs.createIndex({ actorId: 1 }),
     collections.adminAuditLogs.createIndex({ targetType: 1, targetId: 1 }),
     collections.adminAuditLogs.createIndex({ createdAt: 1 }),
+    collections.adminFeatureFlags.createIndex({ id: 1 }, { unique: true }),
+    collections.adminFeatureFlags.createIndex({ updatedAt: -1 }),
+    collections.adminUploadDrafts.createIndex({ id: 1 }, { unique: true }),
+    collections.adminUploadDrafts.createIndex({ createdById: 1, createdAt: -1 }),
+    collections.adminUploadDrafts.createIndex({ status: 1, createdAt: -1 }),
   ]);
 
   globalForDatabase.indexesReady = true;
@@ -164,6 +174,15 @@ async function bootstrapDatabase(dbClient: DatabaseClient): Promise<void> {
   try {
     await dbClient.client.connect();
     await ensureIndexes(dbClient.collections);
+
+    const env = getServerEnv(process.env);
+    if (env.NODE_ENV !== "production") {
+      const { createdSuperAdmin } = await seedDefaultAuthData(dbClient, env);
+
+      if (createdSuperAdmin) {
+        serverLogger.info("Default super admin account bootstrapped for local development.");
+      }
+    }
   } catch (error) {
     serverLogger.error("MongoDB bootstrap failed", {
       error,
@@ -208,10 +227,14 @@ function createDatabaseClient(): DatabaseClient {
         userRoles: database.collection<UserRoleRecord>("user_roles"),
         rolePermissions: database.collection<RolePermissionRecord>("role_permissions"),
         adminAuditLogs: database.collection<AdminAuditLogRecord>("admin_audit_logs"),
+        adminFeatureFlags: database.collection<AdminFeatureFlagRecord>("admin_feature_flags"),
+        adminUploadDrafts: database.collection<AdminUploadDraftRecord>("admin_upload_drafts"),
       },
     };
 
-    void bootstrapDatabase(dbClient);
+    if (process.env.INTERNAL_DISABLE_DB_AUTO_BOOTSTRAP !== "true") {
+      void bootstrapDatabase(dbClient);
+    }
 
     return dbClient;
   } catch (error) {

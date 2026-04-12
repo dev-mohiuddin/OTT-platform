@@ -25,7 +25,11 @@ function Avatar({
   )
 }
 
-function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
+function AvatarImage({ className, src, ...props }: AvatarPrimitive.Image.Props) {
+  const normalizedSrc = typeof src === "string" && src.trim().length === 0
+    ? undefined
+    : src
+
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
@@ -33,6 +37,7 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
         "aspect-square size-full rounded-full object-cover",
         className
       )}
+      src={normalizedSrc}
       {...props}
     />
   )

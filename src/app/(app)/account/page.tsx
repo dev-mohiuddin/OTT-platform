@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getThumbnailByIndex } from "@/lib/constants/thumbnails";
+import { getUserInitials } from "../../../lib/formatters/initials";
 
 export default function AccountPage() {
   const { data: session, update: updateSession } = useSession();
@@ -25,12 +26,7 @@ export default function AccountPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const userName = session?.user?.name || "User";
-  const userInitials = userName
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const userInitials = getUserInitials(session?.user?.name);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({

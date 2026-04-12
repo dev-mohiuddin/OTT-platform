@@ -1,12 +1,14 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 
 import { getAuthEnvRequired } from "@/config/env/server-env";
+import { seedDefaultAuthData } from "@/lib/db/bootstrap-defaults";
 import { createMongoAuthAdapter } from "@/lib/auth/mongo-adapter";
 import { getUserAccessSnapshot, type AccessSnapshot } from "@/lib/auth/access";
 import { verifyPassword } from "@/lib/auth/password";
+import { db } from "@/lib/db/client";
 import { SYSTEM_ROLE } from "@/lib/auth/constants";
 import { normalizeIdentifier } from "@/lib/auth/code";
 import {
@@ -17,6 +19,7 @@ import {
   markUserEmailVerified,
 } from "@/server/modules/users/repositories/user-auth.repository";
 import { credentialsSignInSchema } from "@/server/modules/users/validators/auth.schemas";
+import { API_ERROR_CODES } from "@/server/common/errors/error-codes";
 import { serverLogger } from "@/server/common/logging/server-logger";
 
 const env = getAuthEnvRequired(process.env);
@@ -24,6 +27,13 @@ const emptyAccessSnapshot: AccessSnapshot = {
   roles: [],
   permissions: [],
 };
+
+class CredentialsAuthorizationError extends CredentialsSignin {
+  constructor(code: string) {
+    super();
+    this.code = code;
+  }
+}
 
 const providers: Provider[] = [
   Credentials({
@@ -41,25 +51,35 @@ const providers: Provider[] = [
     async authorize(rawCredentials) {
       const parsed = credentialsSignInSchema.safeParse(rawCredentials);
       if (!parsed.success) {
-        return null;
+        throw new CredentialsAuthorizationError(API_ERROR_CODES.VALIDATION_ERROR);
       }
 
       const identifier = parsed.data.identifier.includes("@")
         ? normalizeIdentifier(parsed.data.identifier)
         : parsed.data.identifier.trim();
 
-      const user = await findUserByIdentifier(identifier);
+      let user = await findUserByIdentifier(identifier);
+
+      if (
+        !user
+        && env.NODE_ENV !== "production"
+        && normalizeIdentifier(identifier) === normalizeIdentifier(env.SUPER_ADMIN_EMAIL)
+      ) {
+        await seedDefaultAuthData(db, env);
+        user = await findUserByIdentifier(identifier);
+      }
+
       if (!user || !user.passwordHash || !user.isActive) {
-        return null;
+        throw new CredentialsAuthorizationError(API_ERROR_CODES.AUTH_INVALID_CREDENTIALS);
       }
 
       const isValidPassword = await verifyPassword(parsed.data.password, user.passwordHash);
       if (!isValidPassword) {
-        return null;
+        throw new CredentialsAuthorizationError(API_ERROR_CODES.AUTH_INVALID_CREDENTIALS);
       }
 
       if (user.email && !user.emailVerified) {
-        throw new Error("EMAIL_NOT_VERIFIED");
+        throw new CredentialsAuthorizationError(API_ERROR_CODES.AUTH_ACCOUNT_NOT_VERIFIED);
       }
 
       await assignRoleToUserBySlug(user.id, SYSTEM_ROLE.USER);

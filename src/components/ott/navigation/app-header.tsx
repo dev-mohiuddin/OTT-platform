@@ -21,6 +21,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ott/layout/theme-toggle";
+import { getUserInitials } from "../../../lib/formatters/initials";
 
 export function AppHeader() {
   const router = useRouter();
@@ -51,12 +52,7 @@ export function AppHeader() {
 
   const userEmail = session?.user?.email || "";
   const userName = session?.user?.name || "User";
-  const userInitials = userName
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const userInitials = getUserInitials(session?.user?.name);
 
   return (
     <header className="sticky top-0 z-40 border-b border-ott-border-soft/70 bg-white/85 backdrop-blur-xl dark:bg-black/55">

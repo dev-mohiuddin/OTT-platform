@@ -1,12 +1,24 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BarChart3, Clock3, Eye, Sparkles } from "lucide-react";
 
+import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { hasPermission } from "@/lib/auth/access";
+import { ADMIN_PERMISSION } from "@/lib/auth/constants";
 import { getThumbnailByIndex } from "@/lib/constants/thumbnails";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const session = await auth();
+  const roles = session?.user?.roles ?? [];
+  const permissions = session?.user?.permissions ?? [];
+
+  if (session?.user?.id && hasPermission({ roles, permissions }, ADMIN_PERMISSION.PANEL_ACCESS)) {
+    redirect("/admin");
+  }
+
   return (
     <div className="min-h-screen bg-linear-to-b from-ott-bg-primary via-ott-bg-secondary/45 to-ott-bg-primary dark:from-black dark:via-ott-bg-secondary/20 dark:to-black">
       <section className="ott-shell py-8 sm:py-10">

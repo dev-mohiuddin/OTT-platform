@@ -1,55 +1,3 @@
-export interface AdminPermission {
-  id: string;
-  key: string;
-  label: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AdminRolePermission {
-  roleId: string;
-  permissionId: string;
-  createdAt: string;
-  permission: AdminPermission;
-}
-
-export interface AdminRole {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  isSystem: boolean;
-  createdAt: string;
-  updatedAt: string;
-  permissions: AdminRolePermission[];
-  _count?: {
-    users: number;
-  };
-}
-
-export interface AdminUserRole {
-  userId: string;
-  roleId: string;
-  assignedById: string | null;
-  assignedAt: string;
-  role: {
-    id: string;
-    name: string;
-    slug: string;
-  };
-}
-
-export interface AdminUser {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  isActive: boolean;
-  createdAt: string;
-  roles: AdminUserRole[];
-}
-
 export type AdminContentStatus = "draft" | "scheduled" | "published" | "archived";
 export type AdminContentFormat = "Movie" | "Series";
 export type AdminAccessMode = "subscription" | "ticket" | "hybrid";
@@ -77,7 +25,7 @@ export interface AdminContentCatalog {
   items: AdminContentItem[];
 }
 
-export interface AdminCreateContentDraftInput {
+export interface CreateAdminContentDraftInput {
   title: string;
   format?: AdminContentFormat;
   accessMode?: AdminAccessMode;
@@ -86,7 +34,7 @@ export interface AdminCreateContentDraftInput {
   owner?: string;
 }
 
-export interface AdminUpdateContentDraftInput {
+export interface UpdateAdminContentDraftInput {
   title?: string;
   format?: AdminContentFormat;
   status?: AdminContentStatus;
@@ -131,7 +79,7 @@ export interface AdminTicketSalesOverview {
   };
 }
 
-export interface AdminCreateTicketOfferInput {
+export interface CreateAdminTicketOfferInput {
   title: string;
   price: number;
   expiresAt: string;
@@ -152,7 +100,7 @@ export interface AdminFeatureFlag {
   enabled: boolean;
 }
 
-export interface AdminSaveFeatureFlagsInput {
+export interface SaveAdminFeatureFlagsInput {
   flags: Array<{
     id: string;
     enabled: boolean;
@@ -167,7 +115,7 @@ export interface AdminUploadBlueprint {
   minimumTiers: Array<"free" | "basic" | "standard" | "premium">;
 }
 
-export interface AdminCreateUploadDraftInput {
+export interface CreateAdminUploadDraftInput {
   title: string;
   slug: string;
   synopsis: string;
